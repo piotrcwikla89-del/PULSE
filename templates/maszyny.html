@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panele Maszyn - System Drukarni</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .machine-card {
+            transition: transform 0.2s;
+            cursor: pointer;
+        }
+        .machine-card:hover {
+            transform: translateY(-5px);
+        }
+    </style>
+</head>
+<body class="bg-light">
+<div class="container mt-5">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="fas fa-cogs"></i> Panele Maszyn</h1>
+        <div>
+            <span class="me-3"><i class="fas fa-user"></i> {{ user.username }}</span>
+            {% if assigned_machine %}
+            <span class="badge bg-info text-dark me-2">Przypisana maszyna: {{ assigned_machine }}</span>
+            {% endif %}
+            <a href="/dashboard" class="btn btn-outline-primary btn-sm"><i class="fas fa-home"></i> Dashboard</a>
+            <a href="/logout" class="btn btn-outline-danger btn-sm"><i class="fas fa-sign-out-alt"></i> Wyloguj</a>
+        </div>
+    </div>
+
+    <div class="row g-4">
+
+        <!-- Maszyna D6 -->
+        <div class="col-md-4">
+            <div class="card machine-card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-print"></i> Maszyna D6</h5>
+                </div>
+                <div class="card-body">
+                    <p class="card-text">Panel operatorski dla maszyny D6</p>
+                    <div class="d-grid gap-2">
+                        <a href="/maszyna/d6/plany" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-calendar-alt"></i> Plany dzienne
+                        </a>
+                        <a href="/maszyna/d6/raport-zadruku" class="btn btn-outline-info btn-sm">
+                            <i class="fas fa-clipboard-check"></i> Raport zadruku
+                        </a>
+                        <a href="/maszyna/d6/raport-produkcji" class="btn btn-outline-success btn-sm">
+                            <i class="fas fa-chart-bar"></i> Raport produkcji
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Maszyna D8 -->
+        <div class="col-md-4">
+            <div class="card machine-card shadow-sm">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="fas fa-print"></i> Maszyna D8</h5>
+                </div>
+                <div class="card-body">
+                    <p class="card-text">Panel operatorski dla maszyny D8</p>
+                    <div class="d-grid gap-2">
+                        <a href="/maszyna/d8/plany" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-calendar-alt"></i> Plany dzienne
+                        </a>
+                        <a href="/maszyna/d8/raport-zadruku" class="btn btn-outline-info btn-sm">
+                            <i class="fas fa-clipboard-check"></i> Raport zadruku
+                        </a>
+                        <a href="/maszyna/d8/raport-produkcji" class="btn btn-outline-success btn-sm">
+                            <i class="fas fa-chart-bar"></i> Raport produkcji
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Maszyna D10 -->
+        <div class="col-md-4">
+            <div class="card machine-card shadow-sm">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-print"></i> Maszyna D10</h5>
+                </div>
+                <div class="card-body">
+                    <p class="card-text">Panel operatorski dla maszyny D10</p>
+                    <div class="d-grid gap-2">
+                        <a href="/maszyna/d10/plany" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-calendar-alt"></i> Plany dzienne
+                        </a>
+                        <a href="/maszyna/d10/raport-zadruku" class="btn btn-outline-info btn-sm">
+                            <i class="fas fa-clipboard-check"></i> Raport zadruku
+                        </a>
+                        <a href="/maszyna/d10/raport-produkcji" class="btn btn-outline-success btn-sm">
+                            <i class="fas fa-chart-bar"></i> Raport produkcji
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+{% include '_notification_poll.html' %}
+</body>
+</html>

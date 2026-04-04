@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel administratora</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body class="bg-light">
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="fas fa-cogs"></i> Panel administratora</h1>
+        <div>
+            <span class="me-3"><i class="fas fa-user"></i> {{ user.username }} ({{ user.role }})</span>
+            <a href="/magazyn" class="btn btn-secondary"><i class="fas fa-arrow-left"></i> Powrót</a>
+            <a href="/logout" class="btn btn-outline-danger btn-sm"><i class="fas fa-sign-out-alt"></i> Wyloguj</a>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white"><i class="fas fa-clock"></i> Zarządzanie zmianami produkcyjnymi</div>
+        <div class="card-body">
+            <div class="table-responsive mb-3">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Nazwa zmiany</th>
+                            <th>Początek</th>
+                            <th>Koniec</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for shift in shifts %}
+                        <tr>
+                            <td>{{ shift.name }}</td>
+                            <td>{{ shift.start_time }}</td>
+                            <td>{{ shift.end_time }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <p class="text-muted small">Domyślne zmiany: dzień (6:00-18:00), noc (18:00-6:00)</p>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white"><i class="fas fa-user-plus"></i> Zarządzanie użytkownikami</div>
+        <div class="card-body">
+            {% if error %}
+            <div class="alert alert-danger">{{ error }}</div>
+            {% endif %}
+            {% if success %}
+            <div class="alert alert-success">{{ success }}</div>
+            {% endif %}
+            <form method="post" action="/admin/add_user" class="row g-3 mb-3">
+                <div class="col-md-3">
+                    <input type="text" name="username" class="form-control" placeholder="Nazwa użytkownika" required>
+                </div>
+                <div class="col-md-3">
+                    <select name="role" class="form-select" required>
+                        <option value="drukarz">Drukarz</option>
+                        <option value="operator_mieszalni">Operator Mieszalni</option>
+                        <option value="prepress">Prepress</option>
+                        <option value="manager">Kierownik</option>
+                        <option value="admin">Administrator</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <input type="password" name="password" class="form-control" placeholder="Hasło" required>
+                </div>
+                <div class="col-md-3">
+                    <input type="password" name="confirm_password" class="form-control" placeholder="Powtórz hasło" required>
+                </div>
+                <div class="col-md-3">
+                    <button type="submit" class="btn btn-success"><i class="fas fa-save"></i> Dodaj użytkownika</button>
+                </div>
+            </form>
+            <p class="text-muted small">
+                <strong>Role dostępu:</strong><br>
+                • <strong>Drukarz</strong> - dostęp do maszyn drukarskich<br>
+                • <strong>Operator Mieszalni</strong> - dostęp do mieszania farb<br>
+                • <strong>Prepress</strong> - dostęp do przygotowania plików<br>
+                • <strong>Kierownik</strong> - dostęp do raportów i statystyk<br>
+                • <strong>Administrator</strong> - pełny dostęp do wszystkich funkcji
+            </p>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white"><i class="fas fa-bell"></i> Powiadomienia w systemie</div>
+        <div class="card-body">
+            <p class="text-muted small">Wyłączone typy nie tworzą wpisów w skrzynce powiadomień (wezwania, raporty, zdarzenia produkcyjne). Dziennik <code>production_log</code> i tabela <code>events</code> nadal rejestrują zdarzenia.</p>
+            <form method="post" action="/admin/notification-settings">
+                <div class="row g-2">
+                    {% for np in notification_prefs %}
+                    <div class="col-md-6">
+                        <div class="form-check border rounded p-2 h-100">
+                            <input class="form-check-input" type="checkbox" name="{{ np.key }}" id="n-{{ np.key }}" {% if np.enabled %}checked{% endif %}>
+                            <label class="form-check-label" for="n-{{ np.key }}">
+                                <code class="small">{{ np.key }}</code><br><span class="small">{{ np.label }}</span>
+                            </label>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                <button type="submit" class="btn btn-primary mt-3"><i class="fas fa-save"></i> Zapisz ustawienia powiadomień</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white"><i class="fas fa-key"></i> Zmień hasło administratora</div>
+        <div class="card-body">
+            <form method="post" action="/admin/change_password" class="row g-3">
+                <div class="col-md-4">
+                    <input type="password" name="current_password" class="form-control" placeholder="Aktualne hasło" required>
+                </div>
+                <div class="col-md-4">
+                    <input type="password" name="new_password" class="form-control" placeholder="Nowe hasło" required>
+                </div>
+                <div class="col-md-4">
+                    <button type="submit" class="btn btn-warning"><i class="fas fa-save"></i> Zmień hasło</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white"><i class="fas fa-file-import"></i> Import danych (CSV)</div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <form action="/admin/import_farby" method="post" enctype="multipart/form-data" class="d-flex gap-2 align-items-center">
+                        <input type="file" name="plik" class="form-control" accept=".csv" required>
+                        <button type="submit" class="btn btn-success">Import farb</button>
+                    </form>
+                </div>
+                <div class="col-md-4">
+                    <form action="/admin/import_polimery" method="post" enctype="multipart/form-data" class="d-flex gap-2 align-items-center">
+                        <input type="file" name="plik" class="form-control" accept=".csv" required>
+                        <button type="submit" class="btn btn-success">Import polimerów</button>
+                    </form>
+                </div>
+                <div class="col-md-4">
+                    <form action="/admin/import_plany" method="post" enctype="multipart/form-data" class="d-flex gap-2 align-items-center">
+                        <input type="file" name="plik" class="form-control" accept=".csv" required>
+                        <button type="submit" class="btn btn-success">Import planów</button>
+                    </form>
+                </div>
+            </div>
+            <p class="text-muted mt-3 small">Oczekiwane nagłówki CSV:<br>
+                farby: pantone,lub,polka,waga,data_produkcji<br>
+                polimery: lub,kolor,lokalizacja,data_waznosci,uwagi<br>
+                plany: machine,order_number,artwork_number,lub_number,order_name,laminate,meters,pieces,planned_date
+            </p>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white"><i class="fas fa-list"></i> Lista użytkowników</div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>ID</th>
+                            <th>Nazwa użytkownika</th>
+                            <th>Rola</th>
+                            <th>Akcje</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for u in users %}
+                        <tr>
+                            <td>{{ u.id }}</td>
+                            <td>{{ u.username }}</td>
+                            <td>
+                                {% if u.role == 'admin' %}
+                                    <span class="badge bg-danger"><i class="fas fa-user-shield"></i> Administrator</span>
+                                {% elif u.role == 'manager' %}
+                                    <span class="badge bg-warning"><i class="fas fa-user-tie"></i> Kierownik</span>
+                                {% elif u.role == 'drukarz' %}
+                                    <span class="badge bg-primary"><i class="fas fa-print"></i> Drukarz</span>
+                                {% elif u.role == 'operator_mieszalni' %}
+                                    <span class="badge bg-success"><i class="fas fa-blender"></i> Operator Mieszalni</span>
+                                {% elif u.role == 'prepress' %}
+                                    <span class="badge bg-info"><i class="fas fa-images"></i> Prepress</span>
+                                {% else %}
+                                    <span class="badge bg-secondary"><i class="fas fa-user"></i> {{ u.role }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if u.role != 'admin' %}
+                                <form method="post" action="/admin/delete_user" style="display:inline;">
+                                    <input type="hidden" name="user_id" value="{{ u.id }}">
+                                    <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Usunąć użytkownika {{ u.username }}?')"><i class="fas fa-trash"></i> Usuń</button>
+                                </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

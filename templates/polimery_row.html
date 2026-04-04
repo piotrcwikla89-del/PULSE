@@ -1,0 +1,64 @@
+<tr data-id="{{ p.id }}" class="{% if p.status == 'zutylizowana' or p.status == 'uszkodzona' %}zutylizowana-row{% endif %}">
+    <td>{{ p.lub }}</td>
+    <td>{{ p.kolor }}</td>
+    <td>{{ p.lokalizacja }}</td>
+    <td>{{ p.data_waznosci }}</td>
+    <td>
+        {% if p.status == 'dostepna' %}
+            <span class="badge bg-success"><i class="fas fa-box"></i> Dostępna</span>
+        {% elif p.status == 'w_uzyciu' %}
+            <span class="badge bg-primary"><i class="fas fa-cog"></i> W użyciu</span>
+        {% elif p.status == 'uszkodzona' %}
+            <span class="badge bg-warning"><i class="fas fa-exclamation-triangle"></i> Uszkodzona</span>
+        {% elif p.status == 'zutylizowana' %}
+            <span class="badge bg-secondary"><i class="fas fa-skull"></i> Zutylizowana</span>
+        {% endif %}
+    </td>
+    <td>{{ p.artwork_number }}</td>
+    <td class="actions-cell">
+        {% if p.status == 'dostepna' %}
+            <form method="post" action="/pobierz_polimer" class="d-inline">
+                <input type="hidden" name="id" value="{{ p.id }}">
+                <button class="btn btn-sm btn-primary"><i class="fas fa-download"></i> Pobierz</button>
+            </form>
+            <form method="post" action="/uszkodz_polimer" class="d-inline">
+                <input type="hidden" name="id" value="{{ p.id }}">
+                <input type="text" name="powod" class="form-control form-control-sm d-inline w-auto" style="width:100px" placeholder="Powód">
+                <button class="btn btn-sm btn-warning"><i class="fas fa-exclamation-triangle"></i> Uszkodz</button>
+            </form>
+            <form method="post" action="/utylizuj_polimer" class="d-inline">
+                <input type="hidden" name="id" value="{{ p.id }}">
+                <input type="text" name="powod" class="form-control form-control-sm d-inline w-auto" style="width:100px" placeholder="Powód">
+                <button class="btn btn-sm btn-danger"><i class="fas fa-trash"></i> Utylizuj</button>
+            </form>
+        {% elif p.status == 'w_uzyciu' %}
+            <form method="post" action="/zwroc_polimer" class="d-inline">
+                <input type="hidden" name="id" value="{{ p.id }}">
+                <button class="btn btn-sm btn-secondary"><i class="fas fa-undo-alt"></i> Zwrot</button>
+            </form>
+            <form method="post" action="/uszkodz_polimer" class="d-inline">
+                <input type="hidden" name="id" value="{{ p.id }}">
+                <input type="text" name="powod" class="form-control form-control-sm d-inline w-auto" style="width:100px" placeholder="Powód">
+                <button class="btn btn-sm btn-warning"><i class="fas fa-exclamation-triangle"></i> Uszkodz</button>
+            </form>
+            <form method="post" action="/utylizuj_polimer" class="d-inline">
+                <input type="hidden" name="id" value="{{ p.id }}">
+                <input type="text" name="powod" class="form-control form-control-sm d-inline w-auto" style="width:100px" placeholder="Powód">
+                <button class="btn btn-sm btn-danger"><i class="fas fa-trash"></i> Utylizuj</button>
+            </form>
+        {% elif p.status == 'uszkodzona' %}
+            <form method="post" action="/przywroc_polimer" class="d-inline">
+                <input type="hidden" name="id" value="{{ p.id }}">
+                <input type="date" name="nowa_data_waznosci" class="form-control form-control-sm d-inline w-auto" style="width:130px" placeholder="Nowa data">
+                <button class="btn btn-sm btn-success"><i class="fas fa-recycle"></i> Przywróć</button>
+            </form>
+            <form method="post" action="/utylizuj_polimer" class="d-inline">
+                <input type="hidden" name="id" value="{{ p.id }}">
+                <input type="text" name="powod" class="form-control form-control-sm d-inline w-auto" style="width:100px" placeholder="Powód">
+                <button class="btn btn-sm btn-danger"><i class="fas fa-trash"></i> Utylizuj</button>
+            </form>
+        {% elif p.status == 'zutylizowana' %}
+            <!-- Brak akcji dla zutylizowanych -->
+        {% endif %}
+    </td>
+</tr>

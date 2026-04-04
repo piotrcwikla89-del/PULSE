@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Statystyki</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-light">
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="fas fa-chart-bar"></i> Statystyki</h1>
+        <div>
+            <span class="me-3"><i class="fas fa-user"></i> {{ user.username }} ({{ user.role }})</span>
+            <a href="/magazyn" class="btn btn-secondary"><i class="fas fa-arrow-left"></i> Powrót</a>
+            <a href="/logout" class="btn btn-outline-danger btn-sm"><i class="fas fa-sign-out-alt"></i> Wyloguj</a>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white"><i class="fas fa-trophy"></i> Top 10 najczęściej wydawanych farb</div>
+                <div class="card-body">
+                    <ul class="list-group list-group-flush">
+                        {% for f in top_farby %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            {{ f.farba }}
+                            <span class="badge bg-primary rounded-pill">{{ f.ile }} wydań</span>
+                        </li>
+                        {% else %}
+                        <li class="list-group-item">Brak danych</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white"><i class="fas fa-chart-line"></i> Wykres wydań</div>
+                <div class="card-body">
+                    <canvas id="wydaniaChart" width="400" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <a href="/raport_utylizacji" class="btn btn-danger"><i class="fas fa-trash-alt"></i> Raport utylizacji</a>
+    </div>
+</div>
+
+<script>
+    const labels = {{ labels | tojson }};
+    const values = {{ values | tojson }};
+    const ctx = document.getElementById('wydaniaChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Liczba wydań',
+                data: values,
+                backgroundColor: 'rgba(13, 110, 253, 0.6)',
+                borderColor: 'rgba(13, 110, 253, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { labels: { color: '#212529' } }
+            },
+            scales: {
+                y: { ticks: { color: '#212529' }, grid: { color: '#dee2e6' } },
+                x: { ticks: { color: '#212529', maxRotation: 45, minRotation: 45 }, grid: { color: '#dee2e6' } }
+            }
+        }
+    });
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

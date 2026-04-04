@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Powiadomienia - System Drukarni</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body class="bg-light">
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1><i class="fas fa-bell"></i> Powiadomienia</h1>
+        <a href="/dashboard" class="btn btn-outline-primary btn-sm"><i class="fas fa-home"></i> Dashboard</a>
+    </div>
+    <div class="card">
+        <div class="card-body">
+            {% if notifications %}
+            <ul class="list-group" id="notificationsList">
+                {% for n in notifications %}
+                <li class="list-group-item{% if not n.is_read %} list-group-item-warning{% endif %}" data-id="{{ n.id }}">
+                    <strong>{{ n.created_at }}</strong> — {{ n.message }} <br>
+                    <small>Maszyna: {{ n.machine or 'n/d' }} | Zlecenie: {{ n.plan_order_number or n.plan_id or 'n/d' }} | LUB: {{ n.plan_lub_number or '—' }} | Adresat: {{ n.target_role }}{{ ' / ' + n.target_user if n.target_user }}</small>
+                    {% if not n.is_read %}
+                    <button class="btn btn-sm btn-success float-end mark-read" data-id="{{ n.id }}">Oznacz jako przeczytane</button>
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <div class="alert alert-secondary">Brak nowych powiadomień.</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Modal dla nowych powiadomień -->
+<div class="modal fade" id="notificationModal" tabindex="-1" aria-labelledby="notificationModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="notificationModalLabel">Nowe powiadomienie</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="notificationModalBody">
+                <!-- Treść powiadomienia -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" id="confirmNotification">Potwierdzam odbiór</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+let lastNotificationId = 0;
+let currentNotification = null;
+
+function checkForNewNotifications() {
+    fetch('/api/notifications/new')
+        .then(response => response.json())
+        .then(data => {
+            if (data.notifications && data.notifications.length > 0) {
+                const notification = data.notifications[0]; // Najnowsze
+                if (notification.id > lastNotificationId) {
+                    lastNotificationId = notification.id;
+                    showNotificationModal(notification);
+                }
+            }
+        })
+        .catch(error => console.error('Błąd podczas sprawdzania powiadomień:', error));
+}
+
+function showNotificationModal(notification) {
+    currentNotification = notification;
+    var zlec = notification.plan_order_number || (notification.plan_id != null ? '(ID planu: ' + notification.plan_id + ')' : 'n/d');
+    document.getElementById('notificationModalBody').innerHTML = `
+        <p><strong>Maszyna:</strong> ${notification.machine || 'n/d'}</p>
+        <p><strong>Numer zlecenia:</strong> ${zlec}</p>
+        <p><strong>LUB:</strong> ${notification.plan_lub_number || 'n/d'}</p>
+        <p><strong>Wiadomość:</strong> ${notification.message}</p>
+        <p><strong>Czas:</strong> ${notification.created_at}</p>
+    `;
+    const modal = new bootstrap.Modal(document.getElementById('notificationModal'));
+    modal.show();
+}
+
+document.getElementById('confirmNotification').addEventListener('click', function() {
+    if (currentNotification) {
+        fetch(`/mark_notification_read/${currentNotification.id}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const modal = bootstrap.Modal.getInstance(document.getElementById('notificationModal'));
+                modal.hide();
+                location.reload(); // Odśwież stronę, żeby pokazać nowe powiadomienia
+            }
+        });
+    }
+});
+
+// Polling co 5 sekund
+setInterval(checkForNewNotifications, 5000);
+
+// Inicjalne sprawdzenie
+checkForNewNotifications();
+
+// Obsługa przycisków "Oznacz jako przeczytane"
+document.addEventListener('click', function(e) {
+    if (e.target.classList.contains('mark-read')) {
+        const id = e.target.getAttribute('data-id');
+        fetch(`/mark_notification_read/${id}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                e.target.closest('li').classList.remove('list-group-item-warning');
+                e.target.remove();
+            }
+        });
+    }
+});
+</script>
+</body>
+</html>

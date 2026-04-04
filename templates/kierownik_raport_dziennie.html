@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Raport Produkcji Dziennej - System Drukarni</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .card {
+            border: none;
+            border-radius: 12px;
+        }
+    </style>
+</head>
+<body>
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 style="color: white;"><i class="fas fa-calendar-day"></i> Raport Produkcji Dziennej</h1>
+        <div>
+            <a href="/kierownik" class="btn btn-light btn-sm"><i class="fas fa-arrow-left"></i> Wróć</a>
+            <a href="/logout" class="btn btn-outline-light btn-sm"><i class="fas fa-sign-out-alt"></i> Wyloguj</a>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card shadow-sm">
+                <div class="card-header bg-white">
+                    <div class="row align-items-center">
+                        <div class="col-md-6">
+                            <h5 class="mb-0">Data raportu</h5>
+                        </div>
+                        <div class="col-md-6 text-end">
+                            <input type="date" id="reportDate" class="form-control form-control-sm d-inline-block" style="width: auto;">
+                            <button class="btn btn-primary btn-sm" onclick="loadReport()">
+                                <i class="fas fa-search"></i> Wczytaj
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card shadow-sm text-center">
+                <div class="card-body">
+                    <h3 style="color: #667eea;">{% set total_all = production|map(attribute='total_qty')|default([])|sum %}{{ total_all if total_all else 0 }}</h3>
+                    <p class="text-muted mb-0">Razem szt.</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm text-center">
+                <div class="card-body">
+                    <h3 style="color: #43e97b;">{% set ok_all = production|map(attribute='ok_qty')|default([])|sum %}{{ ok_all if ok_all else 0 }}</h3>
+                    <p class="text-muted mb-0">OK szt.</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm text-center">
+                <div class="card-body">
+                    <h3 style="color: #f5576c;">{% set nok_all = production|map(attribute='nok_qty')|default([])|sum %}{{ nok_all if nok_all else 0 }}</h3>
+                    <p class="text-muted mb-0">NOT OK szt.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card shadow-sm">
+                <div class="card-header bg-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Raport produkcji po maszynach</h5>
+                        <button class="btn btn-sm btn-outline-primary">
+                            <i class="fas fa-download"></i> Pobierz CSV
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Maszyna</th>
+                                    <th>Lp.</th>
+                                    <th>Razem szt.</th>
+                                    <th>OK szt.</th>
+                                    <th>NOT OK szt.</th>
+                                    <th>Jakość %</th>
+                                    <th>Notatki</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% if production %}
+                                    {% set row_num = [0] %}
+                                    {% for p in production %}
+                                    {% set _ = row_num.append(row_num.pop() + 1) %}
+                                    <tr>
+                                        <td><strong>{{ p.machine }}</strong></td>
+                                        <td>{{ row_num[0] }}</td>
+                                        <td>{{ p.total_qty if p.total_qty else 0 }}</td>
+                                        <td>{{ p.ok_qty if p.ok_qty else 0 }}</td>
+                                        <td>{{ p.nok_qty if p.nok_qty else 0 }}</td>
+                                        <td>
+                                            {% if p.total_qty and p.total_qty > 0 %}
+                                                {% set quality_pct = ((p.ok_qty|default(0) / p.total_qty) * 100)|round(1) %}
+                                                <span class="badge {% if quality_pct >= 90 %}bg-success{% elif quality_pct >= 70 %}bg-warning{% else %}bg-danger{% endif %}">{{ quality_pct }}%</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">0%</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>-</td>
+                                    </tr>
+                                    {% endfor %}
+                                    <tr class="table-light">
+                                        <td><strong>Razem</strong></td>
+                                        <td></td>
+                                        <td><strong>{% set total_all = production|map(attribute='total_qty')|default([])|sum %}{{ total_all if total_all else 0 }}</strong></td>
+                                        <td><strong>{% set ok_all = production|map(attribute='ok_qty')|default([])|sum %}{{ ok_all if ok_all else 0 }}</strong></td>
+                                        <td><strong>{% set nok_all = production|map(attribute='nok_qty')|default([])|sum %}{{ nok_all if nok_all else 0 }}</strong></td>
+                                        <td>
+                                            <strong>
+                                            {% if total_all and total_all > 0 %}
+                                                {% set total_quality = ((ok_all|default(0) / total_all) * 100)|round(1) %}
+                                                <span class="badge {% if total_quality >= 90 %}bg-success{% elif total_quality >= 70 %}bg-warning{% else %}bg-danger{% endif %}">{{ total_quality }}%</span>
+                                            {% else %}
+                                                <span class="badge bg-info">0%</span>
+                                            {% endif %}
+                                            </strong>
+                                        </td>
+                                        <td></td>
+                                    </tr>
+                                {% else %}
+                                    <tr>
+                                        <td colspan="7" class="text-center text-muted">Brak danych na dzisiaj</td>
+                                    </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+{% include '_notification_poll.html' %}
+<script>
+    // Set today's date as default
+    document.getElementById('reportDate').valueAsDate = new Date();
+    
+    function loadReport() {
+        const date = document.getElementById('reportDate').value;
+        // Reload page with date parameter
+        window.location.href = `/kierownik/raport-dziennie?date=${date}`;
+    }
+</script>
+</body>
+</html>

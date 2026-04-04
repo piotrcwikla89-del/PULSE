@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="220" viewBox="0 0 900 220">
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#00aaff" />
+      <stop offset="40%" stop-color="#0066ff" />
+      <stop offset="80%" stop-color="#22dd55" />
+    </linearGradient>
+    <linearGradient id="b" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.9" />
+      <stop offset="100%" stop-color="#e5f6ff" stop-opacity="0.3" />
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#003366" flood-opacity="0.35" />
+    </filter>
+    <style>
+      .title { font: bold 82px "Segoe UI", Arial, sans-serif; fill: url(#g); stroke: #103158; stroke-width: 2px; }
+      .subtitle { font: 22px "Segoe UI", Arial, sans-serif; fill: #0f334f; }
+    </style>
+  </defs>
+  <rect x="0" y="0" width="900" height="220" rx="24" fill="#ffffff" stroke="#c5ddf5" stroke-width="3" filter="url(#shadow)" />
+  <rect x="12" y="12" width="876" height="196" rx="18" fill="url(#b)" />
+  <text x="42" y="120" class="title">PULSE</text>
+  <text x="42" y="155" class="subtitle">Production Unified Logistics & System Execution</text>
+  <circle cx="795" cy="110" r="55" fill="url(#g)" opacity="0.9" />
+  <path d="M755,110 C765,90 785,90 795,110 C785,130 765,130 755,110 Z" fill="#ffffff" opacity="0.9" />
+  <text x="783" y="120" font-size="46" font-weight="bold" fill="#003566">P</text>
+</svg>

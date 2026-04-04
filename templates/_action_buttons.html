@@ -1,0 +1,39 @@
+{% if f.status == 'dostepna' %}
+    {% if f.alert != 'przeterminowana' %}
+    <form method="post" action="/pobierz" class="d-inline">
+        <input type="hidden" name="id" value="{{f.id}}">
+        <button class="btn btn-sm btn-primary"><i class="fas fa-download"></i> Pobierz</button>
+    </form>
+    {% endif %}
+    <form method="post" action="/utylizacja" class="d-inline">
+        <input type="hidden" name="id" value="{{f.id}}">
+        <select name="powod" class="form-select form-select-sm d-inline w-auto" style="width:100px">
+            <option value="data">Data</option>
+            <option value="błąd mieszania">Błąd</option>
+            <option value="resztka">Resztka</option>
+        </select>
+        <button class="btn btn-sm btn-danger"><i class="fas fa-trash"></i> Utylizuj</button>
+    </form>
+{% elif f.status == 'w_uzyciu' %}
+    <form method="post" action="/zwrot" class="d-inline">
+        <input type="hidden" name="id" value="{{f.id}}">
+        <input type="number" step="0.01" name="waga" class="form-control form-control-sm d-inline w-auto" style="width:80px" placeholder="waga" required>
+        <button class="btn btn-sm btn-secondary"><i class="fas fa-undo-alt"></i> Zwrot</button>
+    </form>
+    <form method="post" action="/utylizacja" class="d-inline">
+        <input type="hidden" name="id" value="{{f.id}}">
+        <select name="powod" class="form-select form-select-sm d-inline w-auto" style="width:100px">
+            <option value="data">Data</option>
+            <option value="błąd mieszania">Błąd</option>
+            <option value="resztka">Resztka</option>
+        </select>
+        <button class="btn btn-sm btn-danger"><i class="fas fa-trash"></i> Utylizuj</button>
+    </form>
+{% elif f.status == 'zutylizowana' %}
+    <form method="post" action="/przywroc" class="d-inline">
+        <input type="hidden" name="id" value="{{f.id}}">
+        <input type="date" name="nowa_data" class="form-control form-control-sm d-inline w-auto" style="width:130px" required>
+        <input type="number" step="0.01" name="nowa_waga" class="form-control form-control-sm d-inline w-auto" style="width:80px" placeholder="waga" required>
+        <button class="btn btn-sm btn-success"><i class="fas fa-recycle"></i> Przywróć</button>
+    </form>
+{% endif %}

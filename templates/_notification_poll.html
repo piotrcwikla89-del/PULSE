@@ -1,0 +1,74 @@
+{# Polling + modal jak dla operatora mieszalni — także kierownik i admin. Wymaga wcześniejszego bootstrap.bundle. #}
+{% if user and user.role in ['operator_mieszalni', 'prepress', 'manager', 'admin'] %}
+<script>
+(function () {
+    let lastNotificationId = 0;
+
+    function checkForNewNotifications() {
+        fetch('/api/notifications/new')
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data.notifications && data.notifications.length > 0) {
+                    var n = data.notifications[0];
+                    if (n.id > lastNotificationId) {
+                        lastNotificationId = n.id;
+                        showNotificationModal(n);
+                    }
+                }
+            })
+            .catch(function (e) { console.error('Błąd podczas sprawdzania powiadomień:', e); });
+    }
+
+    function showNotificationModal(notification) {
+        var zlec = notification.plan_order_number || (notification.plan_id != null ? '(ID planu: ' + notification.plan_id + ')' : 'n/d');
+        var lub = notification.plan_lub_number || 'n/d';
+        var modalHtml = `
+            <div class="modal fade" id="globalNotificationModal" tabindex="-1" aria-labelledby="globalNotificationModalLabel" aria-hidden="true">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="globalNotificationModalLabel">Nowe powiadomienie</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p><strong>Maszyna:</strong> ${notification.machine || 'n/d'}</p>
+                            <p><strong>Numer zlecenia:</strong> ${zlec}</p>
+                            <p><strong>LUB:</strong> ${lub}</p>
+                            <p><strong>Wiadomość:</strong> ${notification.message}</p>
+                            <p><strong>Czas:</strong> ${notification.created_at}</p>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-primary" id="confirmGlobalNotification">Potwierdzam odbiór</button>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        var modal = new bootstrap.Modal(document.getElementById('globalNotificationModal'));
+        modal.show();
+
+        document.getElementById('confirmGlobalNotification').addEventListener('click', function () {
+            fetch('/mark_notification_read/' + notification.id, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+            })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (data.success) {
+                        modal.hide();
+                        var el = document.getElementById('globalNotificationModal');
+                        if (el) el.remove();
+                    }
+                });
+        });
+
+        document.getElementById('globalNotificationModal').addEventListener('hidden.bs.modal', function () {
+            this.remove();
+        });
+    }
+
+    setInterval(checkForNewNotifications, 5000);
+    checkForNewNotifications();
+})();
+</script>
+{% endif %}

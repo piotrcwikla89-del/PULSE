@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Ewidencji Drukarni</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .dashboard-card {
+            transition: transform 0.2s;
+            cursor: pointer;
+        }
+        .dashboard-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        .machine-card {
+            background: linear-gradient(135deg, #00aaff 0%, #22dd55 100%);
+            color: white;
+        }
+        .manager-card {
+            background: linear-gradient(135deg, #22dd55 0%, #00aaff 100%);
+            color: white;
+        }
+        .warehouse-card {
+            background: linear-gradient(135deg, #00aaff 0%, #22dd55 100%);
+            color: white;
+        }
+        .polymer-card {
+            background: linear-gradient(135deg, #22dd55 0%, #00aaff 100%);
+            color: white;
+        }
+        .admin-card {
+            background: linear-gradient(135deg, #00aaff 0%, #22dd55 100%);
+            color: white;
+        }
+    </style>
+</head>
+<body class="bg-light">
+<div class="container mt-5">
+
+    <div class="text-center mb-5">
+        <img src="/static/logo_male.svg" alt="Logo" width="80" class="mb-3">
+        <h1 class="display-4"><i class="fas fa-print"></i> System Ewidencji Drukarni</h1>
+        <p class="lead">Wybierz sekcję do której chcesz przejść</p>
+        <div class="mt-3">
+            <span class="badge bg-primary fs-6"><i class="fas fa-user"></i> {{ user.username }} ({{ user.role }})</span>
+            <a href="/logout" class="btn btn-outline-danger btn-sm ms-3"><i class="fas fa-sign-out-alt"></i> Wyloguj</a>
+        </div>
+    </div>
+
+    <div class="row g-4 justify-content-center">
+
+        <!-- Maszyny -->
+        {% if user.role not in ['operator_mieszalni', 'prepress'] %}
+        <div class="col-md-6 col-lg-3">
+            <div class="card dashboard-card machine-card h-100" onclick="window.location.href='/maszyny'">
+                <div class="card-body text-center">
+                    <i class="fas fa-cogs fa-3x mb-3"></i>
+                    <h5 class="card-title">Maszyny</h5>
+                    <p class="card-text">Panele operatorskie D6, D8, D10</p>
+                    <div class="mt-3">
+                        <small>Dostępne panele maszyn</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Panel Kierownika -->
+        {% if user.role not in ['operator_mieszalni', 'prepress'] %}
+        <div class="col-md-6 col-lg-3">
+            <div class="card dashboard-card manager-card h-100" onclick="window.location.href='/kierownik'">
+                <div class="card-body text-center">
+                    <i class="fas fa-user-tie fa-3x mb-3"></i>
+                    <h5 class="card-title">Panel Kierownika</h5>
+                    <p class="card-text">Zarządzanie produkcją i raporty</p>
+                    <div class="mt-3">
+                        <small>Statystyki i nadzór</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Magazyn Farb (jeden kafelek dla wszystkich ról z dostępem do dashboardu) -->
+        <div class="col-md-6 col-lg-3">
+            <div class="card dashboard-card warehouse-card h-100" onclick="window.location.href='/magazyn'">
+                <div class="card-body text-center">
+                    <i class="fas fa-paint-brush fa-3x mb-3"></i>
+                    <h5 class="card-title">Magazyn Farb</h5>
+                    <p class="card-text">Zarządzanie farbami drukarskimi</p>
+                    <div class="mt-3">
+                        <small>Pobieranie, zwrot, utylizacja</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Magazyn Polimerów -->
+        <div class="col-md-6 col-lg-3">
+            <div class="card dashboard-card polymer-card h-100" onclick="window.location.href='/polimery'">
+                <div class="card-body text-center">
+                    <i class="fas fa-cubes fa-3x mb-3"></i>
+                    <h5 class="card-title">Magazyn Polimerów</h5>
+                    <p class="card-text">Zarządzanie matrycami polimerowymi</p>
+                    <div class="mt-3">
+                        <small>Pobieranie, zwrot, naprawy</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Plany Produkcyjne -->
+        <div class="col-md-6 col-lg-3">
+            <div class="card dashboard-card machine-card h-100" onclick="window.location.href='/plany'">
+                <div class="card-body text-center">
+                    <i class="fas fa-calendar-alt fa-3x mb-3"></i>
+                    <h5 class="card-title">Plany Produkcyjne</h5>
+                    <p class="card-text">Przegląd planów wszystkich maszyn</p>
+                    <div class="mt-3">
+                        <small>Zlecenia i harmonogramy</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Powiadomienia -->
+        <div class="col-md-6 col-lg-3">
+            <div class="card dashboard-card admin-card h-100" onclick="window.location.href='/notifications'">
+                <div class="card-body text-center">
+                    <i class="fas fa-bell fa-3x mb-3"></i>
+                    <h5 class="card-title">Powiadomienia</h5>
+                    <p class="card-text">Otrzymuj wezwania i komunikaty</p>
+                    <div class="mt-3">
+                        <small>Monitoruj zlecenia i problemy</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% if user.role == 'admin' %}
+        <!-- Panel Administratora -->
+        <div class="col-md-6 col-lg-3">
+            <div class="card dashboard-card admin-card h-100" onclick="window.location.href='/admin'">
+                <div class="card-body text-center">
+                    <i class="fas fa-user-shield fa-3x mb-3"></i>
+                    <h5 class="card-title">Panel Administratora</h5>
+                    <p class="card-text">Zarządzanie użytkownikami i systemem</p>
+                    <div class="mt-3">
+                        <small>Konfiguracja i użytkownicy</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+    </div>
+
+    <div class="text-center mt-5">
+        <p class="text-muted">System zarządzania produkcją drukarską</p>
+    </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+{% include '_notification_poll.html' %}
+</body>
+</html>

@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Magazyn farb</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .utylizowana-row {
+            opacity: 0.6;
+            background-color: #f8f9fa;
+            text-decoration: line-through;
+            color: #6c757d;
+        }
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1100;
+        }
+    </style>
+</head>
+<body class="bg-light">
+<div class="container mt-4">
+
+    <div class="toast-container" id="toastContainer"></div>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="fas fa-warehouse"></i> Magazyn farb</h1>
+        <div>
+            <span class="me-3"><i class="fas fa-user"></i> {{ user.username }} ({{ user.role }})</span>
+            <a href="/logout" class="btn btn-outline-danger btn-sm"><i class="fas fa-sign-out-alt"></i> Wyloguj</a>
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <a href="/dashboard" class="btn btn-outline-primary"><i class="fas fa-home"></i> Dashboard</a>
+        <a href="/statystyki" class="btn btn-outline-primary"><i class="fas fa-chart-bar"></i> Statystyki</a>
+        <a href="/historia" class="btn btn-outline-dark"><i class="fas fa-history"></i> Historia</a>
+        <a href="/export" class="btn btn-outline-success"><i class="fas fa-file-csv"></i> Eksport CSV</a>
+    </div>
+
+    <!-- Formularz dodawania farby -->
+    <div class="card mb-4 shadow-sm">
+        <div class="card-header bg-primary text-white"><i class="fas fa-plus-circle"></i> Dodaj nową farbę</div>
+        <div class="card-body">
+            <form method="post" action="/dodaj_farba" id="addForm">
+                <div class="row g-3">
+                    <div class="col-md-2">
+                        <input type="text" name="pantone" class="form-control" placeholder="Pantone" required>
+                    </div>
+                    <div class="col-md-2">
+                        <input type="text" name="lub" class="form-control" placeholder="LUB">
+                    </div>
+                    <div class="col-md-2">
+                        <input type="text" name="polka" class="form-control" placeholder="Półka" required>
+                    </div>
+                    <div class="col-md-2">
+                        <input type="date" name="data_produkcji" class="form-control" required>
+                    </div>
+                    <div class="col-md-2">
+                        <input type="number" step="0.01" name="waga" class="form-control" placeholder="Waga (kg)" required>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="submit" class="btn btn-success w-100"><i class="fas fa-save"></i> Dodaj</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Wyszukiwanie -->
+    <div class="card mb-4 shadow-sm">
+        <div class="card-header bg-secondary text-white"><i class="fas fa-search"></i> Wyszukiwanie</div>
+        <div class="card-body">
+            <form method="get" action="/magazyn" class="row g-3 align-items-end">
+                <div class="col-auto">
+                    <label class="form-label">Szukaj w polu:</label>
+                    <select name="search_field" class="form-select">
+                        <option value="lub" {% if search_field == 'lub' %}selected{% endif %}>LUB</option>
+                        <option value="pantone" {% if search_field == 'pantone' %}selected{% endif %}>Pantone</option>
+                        <option value="polka" {% if search_field == 'polka' %}selected{% endif %}>Półka</option>
+                    </select>
+                </div>
+                <div class="col-auto">
+                    <label class="form-label">Wartość:</label>
+                    <input type="text" name="search_value" class="form-control" value="{{ search_value }}">
+                </div>
+                <div class="col-auto">
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-search"></i> Szukaj</button>
+                </div>
+                <div class="col-auto">
+                    <a href="/magazyn" class="btn btn-secondary"><i class="fas fa-times"></i> Wyczyść</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Przyciski filtrów -->
+    <div class="mb-3 d-flex flex-wrap gap-2">
+        <a href="/magazyn?filtr_alert=przeterminowana&search_field={{ search_field }}&search_value={{ search_value }}" class="btn btn-danger"><i class="fas fa-exclamation-triangle"></i> Przeterminowane ({{licznik_przeterminowane}})</a>
+        <a href="/magazyn?filtr_alert=uwaga&search_field={{ search_field }}&search_value={{ search_value }}" class="btn btn-warning"><i class="fas fa-clock"></i> Blisko terminu ({{licznik_uwaga}})</a>
+        <a href="/magazyn?status=dostepna&search_field={{ search_field }}&search_value={{ search_value }}" class="btn btn-success"><i class="fas fa-check-circle"></i> Dostępne</a>
+        <a href="/magazyn?status=w_uzyciu&search_field={{ search_field }}&search_value={{ search_value }}" class="btn btn-primary"><i class="fas fa-tools"></i> W użyciu</a>
+        <a href="/magazyn?status=zutylizowana&search_field={{ search_field }}&search_value={{ search_value }}" class="btn btn-secondary"><i class="fas fa-trash-alt"></i> Zutylizowane ({{licznik_zutylizowane}})</a>
+        <a href="/magazyn?search_field={{ search_field }}&search_value={{ search_value }}" class="btn btn-dark"><i class="fas fa-sync-alt"></i> Reset filtrów</a>
+    </div>
+
+    <!-- Przycisk zbiorczego pobierania (tylko gdy aktywne wyszukiwanie) -->
+    {% if search_value %}
+    <div class="mb-3 d-flex gap-2">
+        <form method="post" action="/pobierz_wszystkie" id="pobierzWszystkieForm">
+            <input type="hidden" name="search_field" value="{{ search_field }}">
+            <input type="hidden" name="search_value" value="{{ search_value }}">
+            <input type="hidden" name="filtr_alert" value="{{ filtr_alert }}">
+            <input type="hidden" name="status" value="{{ status }}">
+            <button type="submit" class="btn btn-primary" onclick="return confirm('Pobrać wszystkie farby pasujące do kryteriów?')"><i class="fas fa-download"></i> Pobierz wszystkie</button>
+        </form>
+    </div>
+    {% endif %}
+
+    <!-- Tabela farb -->
+    <div class="table-responsive">
+        <table class="table table-hover table-bordered align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th><a href="?sort=pantone&dir={{ 'desc' if dir=='asc' else 'asc' }}&search_field={{ search_field }}&search_value={{ search_value }}&filtr_alert={{ filtr_alert }}&status={{ status }}"><i class="fas fa-sort"></i> Pantone</a></th>
+                    <th><a href="?sort=lub&dir={{ 'desc' if dir=='asc' else 'asc' }}&search_field={{ search_field }}&search_value={{ search_value }}&filtr_alert={{ filtr_alert }}&status={{ status }}"><i class="fas fa-sort"></i> LUB</a></th>
+                    <th><a href="?sort=polka&dir={{ 'desc' if dir=='asc' else 'asc' }}&search_field={{ search_field }}&search_value={{ search_value }}&filtr_alert={{ filtr_alert }}&status={{ status }}"><i class="fas fa-sort"></i> Półka</a></th>
+                    <th><a href="?sort=waga&dir={{ 'desc' if dir=='asc' else 'asc' }}&search_field={{ search_field }}&search_value={{ search_value }}&filtr_alert={{ filtr_alert }}&status={{ status }}"><i class="fas fa-sort"></i> Waga (kg)</a></th>
+                    <th><a href="?sort=data_produkcji&dir={{ 'desc' if dir=='asc' else 'asc' }}&search_field={{ search_field }}&search_value={{ search_value }}&filtr_alert={{ filtr_alert }}&status={{ status }}"><i class="fas fa-sort"></i> Data prod.</a></th>
+                    <th><a href="?sort=status&dir={{ 'desc' if dir=='asc' else 'asc' }}&search_field={{ search_field }}&search_value={{ search_value }}&filtr_alert={{ filtr_alert }}&status={{ status }}"><i class="fas fa-sort"></i> Status</a></th>
+                    <th>Akcje</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody">
+                {% for f in farby %}
+                <tr data-id="{{ f.id }}" class="{% if f.status == 'zutylizowana' %}utylizowana-row{% elif f.alert == 'przeterminowana' %}table-danger{% elif f.alert == 'uwaga' %}table-warning{% endif %}">
+                    <td>{{ f.pantone }}</td>
+                    <td>{{ f.lub }}</td>
+                    <td>{{ f.polka }}</td>
+                    <td class="waga-cell">{{ f.waga }}</td>
+                    <td class="data-cell">{{ f.data_produkcji }}</td>
+                    <td>
+                        {% if f.status == 'dostepna' %}
+                            <span class="badge bg-success"><i class="fas fa-box"></i> Dostępna</span>
+                        {% elif f.status == 'w_uzyciu' %}
+                            <span class="badge bg-primary"><i class="fas fa-cog"></i> W użyciu</span>
+                        {% elif f.status == 'zutylizowana' %}
+                            <span class="badge bg-secondary"><i class="fas fa-skull"></i> Zutylizowana</span>
+                        {% endif %}
+                        {% if f.alert == 'przeterminowana' and f.status != 'zutylizowana' %}
+                            <span class="badge bg-danger"><i class="fas fa-calendar-times"></i> przeterminowana</span>
+                        {% elif f.alert == 'uwaga' and f.status != 'zutylizowana' %}
+                            <span class="badge bg-warning text-dark"><i class="fas fa-hourglass-half"></i> blisko terminu</span>
+                        {% endif %}
+                    </td>
+                    <td class="actions-cell">
+                        {% if f.status == 'dostepna' %}
+                            {% if f.alert != 'przeterminowana' %}
+                            <form method="post" action="/pobierz" class="d-inline">
+                                <input type="hidden" name="id" value="{{ f.id }}">
+                                <button class="btn btn-sm btn-primary"><i class="fas fa-download"></i> Pobierz</button>
+                            </form>
+                            {% endif %}
+                            <form method="post" action="/utylizacja" class="d-inline">
+                                <input type="hidden" name="id" value="{{ f.id }}">
+                                <select name="powod" class="form-select form-select-sm d-inline w-auto" style="width:100px">
+                                    <option value="data">Data</option>
+                                    <option value="błąd mieszania">Błąd</option>
+                                    <option value="resztka">Resztka</option>
+                                </select>
+                                <button class="btn btn-sm btn-danger"><i class="fas fa-trash"></i> Utylizuj</button>
+                            </form>
+                        {% elif f.status == 'w_uzyciu' %}
+                            <form method="post" action="/zwrot" class="d-inline">
+                                <input type="hidden" name="id" value="{{ f.id }}">
+                                <input type="number" step="0.01" name="waga" class="form-control form-control-sm d-inline w-auto" style="width:80px" placeholder="waga" required>
+                                <button class="btn btn-sm btn-secondary"><i class="fas fa-undo-alt"></i> Zwrot</button>
+                            </form>
+                            <form method="post" action="/utylizacja" class="d-inline">
+                                <input type="hidden" name="id" value="{{ f.id }}">
+                                <select name="powod" class="form-select form-select-sm d-inline w-auto" style="width:100px">
+                                    <option value="data">Data</option>
+                                    <option value="błąd mieszania">Błąd</option>
+                                    <option value="resztka">Resztka</option>
+                                </select>
+                                <button class="btn btn-sm btn-danger"><i class="fas fa-trash"></i> Utylizuj</button>
+                            </form>
+                        {% elif f.status == 'zutylizowana' %}
+                            <form method="post" action="/przywroc" class="d-inline">
+                                <input type="hidden" name="id" value="{{ f.id }}">
+                                <input type="date" name="nowa_data" class="form-control form-control-sm d-inline w-auto" style="width:130px" required>
+                                <input type="number" step="0.01" name="nowa_waga" class="form-control form-control-sm d-inline w-auto" style="width:80px" placeholder="waga" required>
+                                <button class="btn btn-sm btn-success"><i class="fas fa-recycle"></i> Przywróć</button>
+                            </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="7" class="text-center">Brak farb spełniających kryteria</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    function showToast(message, type) {
+        const toastContainer = document.getElementById('toastContainer');
+        const toast = document.createElement('div');
+        toast.className = `toast align-items-center text-white bg-${type === 'success' ? 'success' : 'danger'} border-0 show`;
+        toast.setAttribute('role', 'alert');
+        toast.setAttribute('aria-live', 'assertive');
+        toast.setAttribute('aria-atomic', 'true');
+        toast.innerHTML = `
+            <div class="d-flex">
+                <div class="toast-body">${message}</div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        `;
+        toastContainer.appendChild(toast);
+        const bsToast = new bootstrap.Toast(toast, { delay: 3000 });
+        bsToast.show();
+        toast.addEventListener('hidden.bs.toast', () => toast.remove());
+    }
+
+    function attachFormHandlers(row) {
+        const forms = row.querySelectorAll('form');
+        forms.forEach(form => {
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                const action = this.action;
+                const formData = new FormData(this);
+                fetch(action, {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast(data.message, 'success');
+                        updateRow(row, data);
+                    } else {
+                        let msg = '';
+                        if (data.error === 'przeterminowana') msg = '❌ Nie można pobrać farby przeterminowanej!';
+                        else if (data.error === 'niedostepna') msg = '❌ Farba nie jest dostępna!';
+                        else if (data.error === 'nie_w_uzyciu') msg = '❌ Farba nie jest w użyciu!';
+                        else msg = '❌ Wystąpił błąd!';
+                        showToast(msg, 'error');
+                    }
+                })
+                .catch(err => {
+                    showToast('❌ Błąd połączenia', 'error');
+                });
+            });
+        });
+    }
+
+    function updateRow(row, data) {
+        const id = row.dataset.id;
+        fetch(`/get_row/${id}`)
+            .then(response => response.text())
+            .then(html => {
+                const newRow = document.createElement('tr');
+                newRow.innerHTML = html;
+                row.parentNode.replaceChild(newRow, row);
+                attachFormHandlers(newRow);
+            })
+            .catch(err => console.error('Błąd pobierania wiersza:', err));
+    }
+
+    // Obsługa formularza dodawania (AJAX)
+    const addForm = document.getElementById('addForm');
+    if (addForm) {
+        addForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            fetch('/dodaj_farba', {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(data.message, 'success');
+                    location.reload(); // proste przeładowanie po dodaniu nowej farby
+                } else {
+                    showToast('❌ Błąd dodawania farby', 'error');
+                }
+            });
+        });
+    }
+
+    // Obsługa formularza zbiorczego pobierania (przeładowanie strony, bo to akcja zbiorcza)
+    const pobierzWszystkieForm = document.getElementById('pobierzWszystkieForm');
+    if (pobierzWszystkieForm) {
+        pobierzWszystkieForm.addEventListener('submit', function(e) {
+            // Pozostawiamy domyślne zachowanie – przeładowanie strony, aby pokazać nowy stan.
+            // Można też dodać potwierdzenie.
+        });
+    }
+
+    // Podepnij eventy dla istniejących wierszy
+    document.querySelectorAll('#tableBody tr[data-id]').forEach(row => {
+        attachFormHandlers(row);
+    });
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+{% include '_notification_poll.html' %}
+</body>
+</html>

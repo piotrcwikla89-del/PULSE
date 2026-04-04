@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wybierz maszynę - Plany dzienne</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body class="bg-light">
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="fas fa-calendar-check"></i> Wybierz maszynę - Plany dzienne</h1>
+        <div>
+            <a href="/dashboard" class="btn btn-outline-secondary btn-sm"><i class="fas fa-home"></i> Dashboard</a>
+            <a href="/logout" class="btn btn-outline-danger btn-sm"><i class="fas fa-sign-out-alt"></i> Wyloguj</a>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        {% for m in machines %}
+        {% set mp = machine_prep.get(m, {'total': 0, 'ready': 0}) %}
+        <div class="col-md-4">
+            <div class="card shadow-sm h-100 position-relative">
+                <div class="card-body text-center">
+                    <i class="fas fa-cogs fa-3x mb-3"></i>
+                    <h5 class="card-title">Maszyna {{ m }}</h5>
+                    <p class="card-text mb-2">Przegląd planów dziennych dla {{ m }}</p>
+                    {% if user.role in ['operator_mieszalni', 'prepress', 'manager', 'admin'] %}
+                    <p class="small text-muted mb-2">
+                        Asortyment:
+                        <span class="text-success">{{ mp.ready }} got.</span>
+                        /
+                        <span class="text-warning">{{ mp.total - mp.ready }} ocz.</span>
+                        <span class="text-muted">({{ mp.total }} zleceń)</span>
+                    </p>
+                    <div class="d-flex justify-content-center gap-1 flex-wrap mb-2" style="min-height:1.25rem;">
+                        {% for i in range(mp.total) %}
+                        <span class="rounded-circle {% if loop.index0 < mp.ready %}bg-success{% else %}bg-warning{% endif %} d-inline-block" style="width:10px;height:10px;" title="{% if loop.index0 < mp.ready %}Zatwierdzone{% else %}Oczekuje{% endif %}"></span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    <span class="badge bg-primary">Przejdź</span>
+                    <a href="/maszyna/{{ m|lower }}/plany" class="stretched-link" aria-label="Otwórz plany {{ m }}"></a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

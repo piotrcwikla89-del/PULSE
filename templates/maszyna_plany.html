@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plany Dzienne - {{ machine }} - System Drukarni</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body class="bg-light">
+<div class="container mt-4">
+    {% if success_msg == 'przeniesiono' %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        Zlecenie zostało przeniesione na wybraną maszynę.
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Zamknij"></button>
+    </div>
+    {% endif %}
+    {% if success_msg == 'asortyment' %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        Zatwierdzono przygotowanie asortymentu (farby i matryce) dla tego zlecenia.
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Zamknij"></button>
+    </div>
+    {% endif %}
+    {% if error_msg %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {% if error_msg == 'niewlasciwa_maszyna' %}Nieprawidłowa maszyna źródłowa lub docelowa.{% elif error_msg == 'ta_sama_maszyna' %}Wybierz inną maszynę docelową.{% elif error_msg == 'brak_zlecenia' %}Nie znaleziono zlecenia na tej maszynie.{% elif error_msg == 'tylko_planowane' %}Można przenosić tylko zlecenia w statusie „zaplanowane” (nie rozpoczęte na maszynie).{% else %}Operacja nie powiodła się.{% endif %}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Zamknij"></button>
+    </div>
+    {% endif %}
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="fas fa-calendar-check"></i> Plany Dzienne - {{ machine }}</h1>
+        <div>
+            {% if user.role in ['operator_mieszalni', 'prepress'] %}
+            <a href="/plany" class="btn btn-outline-primary btn-sm"><i class="fas fa-arrow-left"></i> Wybór maszyny</a>
+            {% else %}
+            <a href="/maszyny" class="btn btn-outline-primary btn-sm"><i class="fas fa-arrow-left"></i> Wróć</a>
+            {% endif %}
+            <a href="/logout" class="btn btn-outline-danger btn-sm"><i class="fas fa-sign-out-alt"></i> Wyloguj</a>
+        </div>
+    </div>
+
+    {% if show_prep_column %}
+    <p class="text-muted small mb-3">
+        <span class="d-inline-block rounded-circle bg-success align-middle me-1" style="width:12px;height:12px;"></span> Asortyment zatwierdzony (farby/matryce)
+        <span class="d-inline-block rounded-circle bg-warning align-middle ms-3 me-1" style="width:12px;height:12px;"></span> Oczekuje na zatwierdzenie przez mieszalnię / prepress
+    </p>
+    {% endif %}
+    {% if prep_ui %}
+    <p class="text-muted small mb-3"><i class="fas fa-info-circle"></i> Rozwiń wiersz <strong>Materiały LUB</strong>, sprawdź stany magazynowe i zatwierdź przygotowanie przed produkcją.</p>
+    {% endif %}
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <h5 class="mb-0">Planowane zlecenia produkcji</h5>
+                {% if user.role in ['admin', 'manager', 'drukarz'] %}
+                <a href="/maszyna/{{ machine|lower }}/export-csv" class="btn btn-sm btn-success">
+                    <i class="fas fa-download"></i> Pobierz CSV
+                </a>
+                {% endif %}
+            </div>
+        </div>
+        <div class="card-body">
+            {% if plans %}
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            {% if show_prep_column %}
+                            <th class="text-center" title="Status przygotowania asortymentu">Prep.</th>
+                            {% endif %}
+                            <th>Nr Zlecenia</th>
+                            <th>Nr Artwork</th>
+                            <th>Nr LUB</th>
+                            <th>Nazwa Zlecenia</th>
+                            <th>Laminat (Surowiec)</th>
+                            <th class="text-end">Metry</th>
+                            <th class="text-end">Sztuki</th>
+                            <th style="min-width: 240px;">Akcje</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in plans %}
+                        <tr>
+                            {% if show_prep_column %}
+                            <td class="text-center">
+                                {% if p.assortment_prep_status == 'ready' %}
+                                <span class="d-inline-block rounded-circle bg-success" style="width:14px;height:14px;" title="Asortyment zatwierdzony"></span>
+                                {% else %}
+                                <span class="d-inline-block rounded-circle bg-warning" style="width:14px;height:14px;" title="Oczekuje na przygotowanie"></span>
+                                {% endif %}
+                            </td>
+                            {% endif %}
+                            <td><strong>{{ p.order_number }}</strong></td>
+                            <td>{{ p.artwork_number }}</td>
+                            <td>{{ p.lub_number }}</td>
+                            <td>{{ p.order_name }}</td>
+                            <td>{{ p.laminate }}</td>
+                            <td class="text-end"><strong>{{ p.meters }}</strong></td>
+                            <td class="text-end"><strong>{{ p.pieces }}</strong></td>
+                            <td>
+                                <div class="d-flex flex-column gap-2 align-items-start">
+                                    {% if prep_ui %}
+                                    <button class="btn btn-sm btn-outline-info text-start" type="button" data-bs-toggle="collapse" data-bs-target="#mat-{{ p.id }}" aria-expanded="false">
+                                        <i class="fas fa-flask"></i> Materiały LUB — rozwiń
+                                    </button>
+                                    {% endif %}
+                                    {% if can_move %}
+                                    <form method="post" action="/kierownik/przenies-zlecenie" class="d-flex flex-wrap align-items-center gap-1">
+                                        <input type="hidden" name="plan_id" value="{{ p.id }}">
+                                        <input type="hidden" name="source_machine" value="{{ machine }}">
+                                        <label class="visually-hidden" for="tgt-{{ p.id }}">Maszyna docelowa</label>
+                                        <select name="target_machine" id="tgt-{{ p.id }}" class="form-select form-select-sm" style="width: auto; min-width: 4.5rem;" required>
+                                            {% for om in other_machines %}
+                                            <option value="{{ om }}">{{ om }}</option>
+                                            {% endfor %}
+                                        </select>
+                                        <button type="submit" class="btn btn-sm btn-outline-warning text-nowrap">Przenieś</button>
+                                    </form>
+                                    {% endif %}
+                                    <a href="/maszyna/{{ machine|lower }}/job/{{ p.id }}" class="btn btn-sm btn-outline-secondary">
+                                        <i class="fas fa-signature"></i> Wybierz
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% if prep_ui %}
+                        <tr class="collapse bg-light" id="mat-{{ p.id }}">
+                            <td colspan="{% if show_prep_column %}9{% else %}8{% endif %}">
+                                <div class="p-3">
+                                    <h6 class="text-secondary">Stan magazynu dla LUB: {{ p.lub_number or '—' }}</h6>
+                                    {% if not p.lub_number %}
+                                    <p class="text-warning mb-0">Brak numeru LUB w zleceniu — nie można dopasować farb ani matryc.</p>
+                                    {% else %}
+                                    <div class="row g-3">
+                                        <div class="col-md-6">
+                                            <h6 class="small text-uppercase text-muted">Farby</h6>
+                                            {% if p.farby %}
+                                            <div class="table-responsive">
+                                                <table class="table table-sm table-bordered bg-white">
+                                                    <thead class="table-light">
+                                                        <tr><th>Pantone</th><th>Półka</th><th>Waga</th><th>Status</th><th>Ważność</th></tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {% for f in p.farby %}
+                                                        <tr class="{% if f.mag_alert == 'przeterminowana' %}table-danger{% elif f.mag_alert == 'uwaga' %}table-warning{% endif %}">
+                                                            <td>{{ f.pantone }}</td>
+                                                            <td>{{ f.polka }}</td>
+                                                            <td>{{ f.waga }}</td>
+                                                            <td>{{ f.status }}</td>
+                                                            <td><small>{{ f.data_produkcji }}{% if f.mag_alert == 'przeterminowana' %} <strong>(przeterm.)</strong>{% elif f.mag_alert == 'uwaga' %} <strong>(uwaga)</strong>{% endif %}</small></td>
+                                                        </tr>
+                                                        {% endfor %}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                            {% else %}
+                                            <p class="text-muted small mb-0">Brak rekordów farb dla tego LUB w magazynie.</p>
+                                            {% endif %}
+                                        </div>
+                                        <div class="col-md-6">
+                                            <h6 class="small text-uppercase text-muted">Matryce (polimery)</h6>
+                                            {% if p.polimery %}
+                                            <div class="table-responsive">
+                                                <table class="table table-sm table-bordered bg-white">
+                                                    <thead class="table-light">
+                                                        <tr><th>Kolor</th><th>Status</th><th>Lokalizacja</th><th>Ważność</th></tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {% for po in p.polimery %}
+                                                        <tr class="{% if po.status == 'uszkodzona' %}table-warning{% elif po.status == 'zutylizowana' %}table-secondary{% endif %}">
+                                                            <td>{{ po.kolor }}</td>
+                                                            <td>{{ po.status }}</td>
+                                                            <td>{{ po.lokalizacja }}</td>
+                                                            <td>{{ po.data_waznosci }}</td>
+                                                        </tr>
+                                                        {% endfor %}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                            {% else %}
+                                            <p class="text-muted small mb-0">Brak matryc dla tego LUB w magazynie.</p>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="mt-3 border-top pt-3">
+                                        {% if p.assortment_prep_status == 'ready' %}
+                                        <span class="badge bg-success fs-6"><i class="fas fa-check"></i> Asortyment zatwierdzony</span>
+                                        {% else %}
+                                        <form method="post" action="/maszyna/{{ machine|lower }}/plan/{{ p.id }}/potwierdz-asortyment" class="d-inline">
+                                            <button type="submit" class="btn btn-success btn-sm" onclick="return confirm('Potwierdzasz, że asortyment dla tego zlecenia został zweryfikowany i jest gotowy do produkcji?');">
+                                                <i class="fas fa-check-circle"></i> Zatwierdź przygotowanie asortymentu
+                                            </button>
+                                        </form>
+                                        {% endif %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endif %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted"><i class="fas fa-info-circle"></i> Brak zaplanowanych zleceń na tej maszynie.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if user.role in ['admin', 'manager'] %}
+    <div class="card shadow-sm">
+        <div class="card-header">
+            <h5 class="mb-0">Import planów produkcji</h5>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-info">
+                <i class="fas fa-lightbulb"></i> <strong>Import awaryjny / wsadowy</strong> — z poziomu <a href="/admin">panelu administratora</a> możesz zaimportować plany CSV z kolumną <code>machine</code>.
+            </div>
+            <p class="text-muted small mb-0">Dodawanie pojedynczych zleceń na bieżąco planujemy przez rozbudowę formularza lub integrację — obecny import z tej strony był niepodpięty pod backend.</p>
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+{% include '_notification_poll.html' %}
+</body>
+</html>

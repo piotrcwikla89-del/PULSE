@@ -1,0 +1,62 @@
+<tr data-id="{{ f.id }}" class="{% if f.status == 'zutylizowana' %}utylizowana-row{% elif f.alert == 'przeterminowana' %}table-danger{% elif f.alert == 'uwaga' %}table-warning{% endif %}">
+    <td>{{ f.pantone }}</td>
+    <td>{{ f.lub }}</td>
+    <td>{{ f.polka }}</td>
+    <td class="waga-cell">{{ f.waga }}</td>
+    <td class="data-cell">{{ f.data_produkcji }}</td>
+    <td>
+        {% if f.status == 'dostepna' %}
+            <span class="badge bg-success"><i class="fas fa-box"></i> Dostępna</span>
+        {% elif f.status == 'w_uzyciu' %}
+            <span class="badge bg-primary"><i class="fas fa-cog"></i> W użyciu</span>
+        {% elif f.status == 'zutylizowana' %}
+            <span class="badge bg-secondary"><i class="fas fa-skull"></i> Zutylizowana</span>
+        {% endif %}
+        {% if f.alert == 'przeterminowana' and f.status != 'zutylizowana' %}
+            <span class="badge bg-danger"><i class="fas fa-calendar-times"></i> przeterminowana</span>
+        {% elif f.alert == 'uwaga' and f.status != 'zutylizowana' %}
+            <span class="badge bg-warning text-dark"><i class="fas fa-hourglass-half"></i> blisko terminu</span>
+        {% endif %}
+    </td>
+    <td class="actions-cell">
+        {% if f.status == 'dostepna' %}
+            {% if f.alert != 'przeterminowana' %}
+            <form method="post" action="/pobierz" class="d-inline">
+                <input type="hidden" name="id" value="{{ f.id }}">
+                <button class="btn btn-sm btn-primary"><i class="fas fa-download"></i> Pobierz</button>
+            </form>
+            {% endif %}
+            <form method="post" action="/utylizacja" class="d-inline">
+                <input type="hidden" name="id" value="{{ f.id }}">
+                <select name="powod" class="form-select form-select-sm d-inline w-auto" style="width:100px">
+                    <option value="data">Data</option>
+                    <option value="błąd mieszania">Błąd</option>
+                    <option value="resztka">Resztka</option>
+                </select>
+                <button class="btn btn-sm btn-danger"><i class="fas fa-trash"></i> Utylizuj</button>
+            </form>
+        {% elif f.status == 'w_uzyciu' %}
+            <form method="post" action="/zwrot" class="d-inline">
+                <input type="hidden" name="id" value="{{ f.id }}">
+                <input type="number" step="0.01" name="waga" class="form-control form-control-sm d-inline w-auto" style="width:80px" placeholder="waga" required>
+                <button class="btn btn-sm btn-secondary"><i class="fas fa-undo-alt"></i> Zwrot</button>
+            </form>
+            <form method="post" action="/utylizacja" class="d-inline">
+                <input type="hidden" name="id" value="{{ f.id }}">
+                <select name="powod" class="form-select form-select-sm d-inline w-auto" style="width:100px">
+                    <option value="data">Data</option>
+                    <option value="błąd mieszania">Błąd</option>
+                    <option value="resztka">Resztka</option>
+                </select>
+                <button class="btn btn-sm btn-danger"><i class="fas fa-trash"></i> Utylizuj</button>
+            </form>
+        {% elif f.status == 'zutylizowana' %}
+            <form method="post" action="/przywroc" class="d-inline">
+                <input type="hidden" name="id" value="{{ f.id }}">
+                <input type="date" name="nowa_data" class="form-control form-control-sm d-inline w-auto" style="width:130px" required>
+                <input type="number" step="0.01" name="nowa_waga" class="form-control form-control-sm d-inline w-auto" style="width:80px" placeholder="waga" required>
+                <button class="btn btn-sm btn-success"><i class="fas fa-recycle"></i> Przywróć</button>
+            </form>
+        {% endif %}
+    </td>
+</tr>

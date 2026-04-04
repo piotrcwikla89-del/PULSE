@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Raport Jakości - System Drukarni</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            min-height: 100vh;
+        }
+        .card {
+            border: none;
+            border-radius: 12px;
+        }
+        .quality-badge {
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: bold;
+            margin: 5px;
+        }
+        .quality-ok {
+            background-color: #43e97b;
+            color: white;
+        }
+        .quality-nok {
+            background-color: #f5576c;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 style="color: white;"><i class="fas fa-check-circle"></i> Raport Jakości</h1>
+        <div>
+            <a href="/kierownik" class="btn btn-light btn-sm"><i class="fas fa-arrow-left"></i> Wróć</a>
+            <a href="/logout" class="btn btn-outline-light btn-sm"><i class="fas fa-sign-out-alt"></i> Wyloguj</a>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card shadow-sm">
+                <div class="card-header bg-white">
+                    <div class="row align-items-center">
+                        <div class="col-md-6">
+                            <h5 class="mb-0">Filtruj raporty</h5>
+                        </div>
+                        <div class="col-md-6 text-end">
+                            <input type="date" id="filterDate" class="form-control form-control-sm d-inline-block" style="width: auto;">
+                            <select id="filterMachine" class="form-select form-select-sm d-inline-block" style="width: auto;">
+                                <option value="">Wszystkie maszyny</option>
+                                <option value="D6">D6</option>
+                                <option value="D8">D8</option>
+                                <option value="D10">D10</option>
+                            </select>
+                            <button class="btn btn-primary btn-sm" onclick="filterQuality()">
+                                <i class="fas fa-filter"></i> Filtruj
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card shadow-sm text-center">
+                <div class="card-body">
+                    <h3 style="color: #43e97b;">{% set total_ok = quality|map(attribute='ok_count')|default([])|sum %}{{ total_ok if total_ok else 0 }}</h3>
+                    <p class="text-muted mb-0">Reports OK</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm text-center">
+                <div class="card-body">
+                    <h3 style="color: #f5576c;">{% set total_nok = quality|map(attribute='not_ok_count')|default([])|sum %}{{ total_nok if total_nok else 0 }}</h3>
+                    <p class="text-muted mb-0">Reports NOT OK</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm text-center">
+                <div class="card-body">
+                    <h3 style="color: #667eea;">
+                    {% set total_reports = quality|map(attribute='total_reports')|default([])|sum %}
+                    {% if total_reports and total_reports > 0 %}
+                        {% set avg_quality = (quality|map(attribute='quality_score')|default([])|sum / (quality|length if quality else 1))|round(1) %}
+                        {{ avg_quality }}%
+                    {% else %}
+                        0%
+                    {% endif %}
+                    </h3>
+                    <p class="text-muted mb-0">Wskaźnik jakości</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Raporty po maszynach -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card shadow-sm">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">Raporty zadruku po maszynach</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="nav nav-tabs mb-3" role="tablist">
+                        <li class="nav-item">
+                            <a class="nav-link active" data-bs-toggle="tab" href="#tabD6">D6</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" data-bs-toggle="tab" href="#tabD8">D8</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" data-bs-toggle="tab" href="#tabD10">D10</a>
+                        </li>
+                    </ul>
+
+                    <div class="tab-content">
+                        <!-- Maszyna D6 -->
+                        <div id="tabD6" class="tab-pane fade show active">
+                            <div class="table-responsive">
+                                <table class="table table-sm table-hover">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Godzina</th>
+                                            <th>Zlecenie</th>
+                                            <th>Status</th>
+                                            <th>Notatki</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% set d6_reports = reports|selectattr('machine', 'equalto', 'D6')|list %}
+                                        {% if d6_reports %}
+                                            {% for r in d6_reports %}
+                                            <tr>
+                                                <td>{{ r.time }}</td>
+                                                <td>{{ r.job_number }}</td>
+                                                <td><span class="badge bg-{% if r.status == 'OK' %}success{% else %}danger{% endif %}">{{ r.status }}</span></td>
+                                                <td>{{ r.notes if r.notes else '-' }}</td>
+                                            </tr>
+                                            {% endfor %}
+                                        {% else %}
+                                            <tr>
+                                                <td colspan="4" class="text-center text-muted">Brak raportów</td>
+                                            </tr>
+                                        {% endif %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Maszyna D8 -->
+                        <div id="tabD8" class="tab-pane fade">
+                            <div class="table-responsive">
+                                <table class="table table-sm table-hover">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Godzina</th>
+                                            <th>Zlecenie</th>
+                                            <th>Status</th>
+                                            <th>Notatki</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% set d8_reports = reports|selectattr('machine', 'equalto', 'D8')|list %}
+                                        {% if d8_reports %}
+                                            {% for r in d8_reports %}
+                                            <tr>
+                                                <td>{{ r.time }}</td>
+                                                <td>{{ r.job_number }}</td>
+                                                <td><span class="badge bg-{% if r.status == 'OK' %}success{% else %}danger{% endif %}">{{ r.status }}</span></td>
+                                                <td>{{ r.notes if r.notes else '-' }}</td>
+                                            </tr>
+                                            {% endfor %}
+                                        {% else %}
+                                            <tr>
+                                                <td colspan="4" class="text-center text-muted">Brak raportów</td>
+                                            </tr>
+                                        {% endif %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Maszyna D10 -->
+                        <div id="tabD10" class="tab-pane fade">
+                            <div class="table-responsive">
+                                <table class="table table-sm table-hover">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Godzina</th>
+                                            <th>Zlecenie</th>
+                                            <th>Status</th>
+                                            <th>Notatki</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% set d10_reports = reports|selectattr('machine', 'equalto', 'D10')|list %}
+                                        {% if d10_reports %}
+                                            {% for r in d10_reports %}
+                                            <tr>
+                                                <td>{{ r.time }}</td>
+                                                <td>{{ r.job_number }}</td>
+                                                <td><span class="badge bg-{% if r.status == 'OK' %}success{% else %}danger{% endif %}">{{ r.status }}</span></td>
+                                                <td>{{ r.notes if r.notes else '-' }}</td>
+                                            </tr>
+                                            {% endfor %}
+                                        {% else %}
+                                            <tr>
+                                                <td colspan="4" class="text-center text-muted">Brak raportów</td>
+                                            </tr>
+                                        {% endif %}
+
+    <!-- Podsumowanie jakości -->
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card shadow-sm">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">Podsumowanie jakości</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Indywidualne wyniki maszyn:</h6>
+                            <ul class="list-unstyled">
+                                <li><strong>D6:</strong> <span class="quality-badge quality-ok">0 OK</span> <span class="quality-badge quality-nok">0 NOT OK</span> - 0%</li>
+                                <li><strong>D8:</strong> <span class="quality-badge quality-ok">0 OK</span> <span class="quality-badge quality-nok">0 NOT OK</span> - 0%</li>
+                                <li><strong>D10:</strong> <span class="quality-badge quality-ok">0 OK</span> <span class="quality-badge quality-nok">0 NOT OK</span> - 0%</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Razem:</h6>
+                            <p>
+                                <span class="quality-badge quality-ok">0 raportów OK</span>
+                                <span class="quality-badge quality-nok">0 raportów NOT OK</span>
+                            </p>
+                            <p style="font-size: 18px;">
+                                <strong>Ogólna jakość:</strong> <span style="color: #667eea; font-size: 24px;">0%</span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+{% include '_notification_poll.html' %}
+<script>
+    // Set today's date as default
+    document.getElementById('filterDate').valueAsDate = new Date();
+    
+    function filterQuality() {
+        const date = document.getElementById('filterDate').value;
+        const machine = document.getElementById('filterMachine').value;
+        let url = `/kierownik/raport-jakosci?date=${date}`;
+        if (machine) {
+            url += `&machine=${machine}`;
+        }
+        window.location.href = url;
+    }
+</script>
+</body>
+</html>

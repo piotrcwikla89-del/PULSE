@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Magazyn polimerów</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #f0f8ff 0%, #e6f7ff 100%);
+        }
+        .zutylizowana-row, .uszkodzona-row {
+            opacity: 0.6;
+            background-color: #f8f9fa;
+            text-decoration: line-through;
+            color: #6c757d;
+        }
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1100;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #00aaff 0%, #22dd55 100%);
+            border: none;
+        }
+        .btn-success {
+            background: linear-gradient(135deg, #22dd55 0%, #00aaff 100%);
+            border: none;
+        }
+        .btn-warning {
+            background: linear-gradient(135deg, #ffaa00 0%, #ffdd55 100%);
+            border: none;
+        }
+        .btn-danger {
+            background: linear-gradient(135deg, #ff4444 0%, #ff8888 100%);
+            border: none;
+        }
+    </style>
+</head>
+<body class="bg-light">
+<div class="container mt-4">
+
+    <div class="toast-container" id="toastContainer"></div>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="fas fa-cubes"></i> Magazyn polimerów</h1>
+        <div>
+            <span class="me-3"><i class="fas fa-user"></i> {{ user.username }} ({{ user.role }})</span>
+            <a href="/logout" class="btn btn-outline-danger btn-sm"><i class="fas fa-sign-out-alt"></i> Wyloguj</a>
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <a href="/dashboard" class="btn btn-outline-primary"><i class="fas fa-home"></i> Dashboard</a>
+        <a href="/magazyn" class="btn btn-outline-primary"><i class="fas fa-paint-brush"></i> Magazyn farb</a>
+        <a href="/statystyki" class="btn btn-outline-primary"><i class="fas fa-chart-bar"></i> Statystyki</a>
+        <a href="/historia" class="btn btn-outline-dark"><i class="fas fa-history"></i> Historia</a>
+    </div>
+
+    <!-- Formularz dodawania polimeru -->
+    <div class="card mb-4 shadow-sm">
+        <div class="card-header bg-primary text-white"><i class="fas fa-plus-circle"></i> Dodaj nowy polimer</div>
+        <div class="card-body">
+            <form method="post" action="/dodaj_polimer" id="addForm">
+                <div class="row g-3">
+                    <div class="col-md-2">
+                        <input type="text" name="lub" class="form-control" placeholder="LUB" required>
+                    </div>
+                    <div class="col-md-2">
+                        <input type="text" name="kolor" class="form-control" placeholder="Kolor/Pantone" required>
+                    </div>
+                    <div class="col-md-2">
+                        <input type="text" name="lokalizacja" class="form-control" placeholder="Lokalizacja">
+                    </div>
+                    <div class="col-md-2">
+                        <input type="date" name="data_waznosci" class="form-control" placeholder="Data ważności">
+                    </div>
+                    <div class="col-md-3">
+                        <input type="text" name="artwork_number" class="form-control" placeholder="Numer artwork">
+                    </div>
+                    <div class="col-md-1">
+                        <button type="submit" class="btn btn-success w-100"><i class="fas fa-save"></i> Dodaj</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Wyszukiwanie -->
+    <div class="card mb-4 shadow-sm">
+        <div class="card-header bg-secondary text-white"><i class="fas fa-search"></i> Wyszukiwanie</div>
+        <div class="card-body">
+            <form method="get" action="/polimery" class="row g-3 align-items-end">
+                <div class="col-auto">
+                    <label class="form-label">Szukaj w polu:</label>
+                    <select name="search_field" class="form-select">
+                        <option value="lub" {% if search_field == 'lub' %}selected{% endif %}>LUB</option>
+                        <option value="kolor" {% if search_field == 'kolor' %}selected{% endif %}>Kolor</option>
+                        <option value="lokalizacja" {% if search_field == 'lokalizacja' %}selected{% endif %}>Lokalizacja</option>
+                    </select>
+                </div>
+                <div class="col-auto">
+                    <label class="form-label">Wartość:</label>
+                    <input type="text" name="search_value" class="form-control" value="{{ search_value }}">
+                </div>
+                <div class="col-auto">
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-search"></i> Szukaj</button>
+                </div>
+                <div class="col-auto">
+                    <a href="/polimery" class="btn btn-secondary"><i class="fas fa-times"></i> Wyczyść</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Przyciski filtrów -->
+    <div class="mb-3 d-flex flex-wrap gap-2">
+        <a href="/polimery?status=dostepna&search_field={{ search_field }}&search_value={{ search_value }}" class="btn btn-success"><i class="fas fa-check-circle"></i> Dostępne</a>
+        <a href="/polimery?status=w_uzyciu&search_field={{ search_field }}&search_value={{ search_value }}" class="btn btn-primary"><i class="fas fa-tools"></i> W użyciu</a>
+        <a href="/polimery?status=uszkodzona&search_field={{ search_field }}&search_value={{ search_value }}" class="btn btn-warning"><i class="fas fa-exclamation-triangle"></i> Uszkodzone</a>
+        <a href="/polimery?status=zutylizowana&search_field={{ search_field }}&search_value={{ search_value }}" class="btn btn-secondary"><i class="fas fa-trash-alt"></i> Zutylizowane</a>
+        <a href="/polimery?search_field={{ search_field }}&search_value={{ search_value }}" class="btn btn-dark"><i class="fas fa-sync-alt"></i> Reset filtrów</a>
+    </div>
+
+    <!-- Tabela polimerów -->
+    <div class="table-responsive">
+        <table class="table table-hover table-bordered align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th><a href="?sort=lub&dir={{ 'desc' if dir=='asc' else 'asc' }}&search_field={{ search_field }}&search_value={{ search_value }}&status={{ status }}"><i class="fas fa-sort"></i> LUB</a></th>
+                    <th><a href="?sort=kolor&dir={{ 'desc' if dir=='asc' else 'asc' }}&search_field={{ search_field }}&search_value={{ search_value }}&status={{ status }}"><i class="fas fa-sort"></i> Kolor</a></th>
+                    <th><a href="?sort=lokalizacja&dir={{ 'desc' if dir=='asc' else 'asc' }}&search_field={{ search_field }}&search_value={{ search_value }}&status={{ status }}"><i class="fas fa-sort"></i> Lokalizacja</a></th>
+                    <th><a href="?sort=data_waznosci&dir={{ 'desc' if dir=='asc' else 'asc' }}&search_field={{ search_field }}&search_value={{ search_value }}&status={{ status }}"><i class="fas fa-sort"></i> Data ważności</a></th>
+                    <th><a href="?sort=status&dir={{ 'desc' if dir=='asc' else 'asc' }}&search_field={{ search_field }}&search_value={{ search_value }}&status={{ status }}"><i class="fas fa-sort"></i> Status</a></th>
+                    <th>Numer artwork</th>
+                    <th>Akcje</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody">
+                {% for p in polimery %}
+                <tr data-id="{{ p.id }}" class="{% if p.status == 'zutylizowana' or p.status == 'uszkodzona' %}zutylizowana-row{% endif %}">
+                    <td>{{ p.lub }}</td>
+                    <td>{{ p.kolor }}</td>
+                    <td>{{ p.lokalizacja }}</td>
+                    <td>{{ p.data_waznosci }}</td>
+                    <td>
+                        {% if p.status == 'dostepna' %}
+                            <span class="badge bg-success"><i class="fas fa-box"></i> Dostępna</span>
+                        {% elif p.status == 'w_uzyciu' %}
+                            <span class="badge bg-primary"><i class="fas fa-cog"></i> W użyciu</span>
+                        {% elif p.status == 'uszkodzona' %}
+                            <span class="badge bg-warning"><i class="fas fa-exclamation-triangle"></i> Uszkodzona</span>
+                        {% elif p.status == 'zutylizowana' %}
+                            <span class="badge bg-secondary"><i class="fas fa-skull"></i> Zutylizowana</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ p.artwork_number }}</td>
+                    <td class="actions-cell">
+                        {% if p.status == 'dostepna' %}
+                            <form method="post" action="/pobierz_polimer" class="d-inline">
+                                <input type="hidden" name="id" value="{{ p.id }}">
+                                <button class="btn btn-sm btn-primary"><i class="fas fa-download"></i> Pobierz</button>
+                            </form>
+                            <form method="post" action="/uszkodz_polimer" class="d-inline">
+                                <input type="hidden" name="id" value="{{ p.id }}">
+                                <input type="text" name="powod" class="form-control form-control-sm d-inline w-auto" style="width:100px" placeholder="Powód">
+                                <button class="btn btn-sm btn-warning"><i class="fas fa-exclamation-triangle"></i> Uszkodz</button>
+                            </form>
+                            <form method="post" action="/utylizuj_polimer" class="d-inline">
+                                <input type="hidden" name="id" value="{{ p.id }}">
+                                <input type="text" name="powod" class="form-control form-control-sm d-inline w-auto" style="width:100px" placeholder="Powód">
+                                <button class="btn btn-sm btn-danger"><i class="fas fa-trash"></i> Utylizuj</button>
+                            </form>
+                        {% elif p.status == 'w_uzyciu' %}
+                            <form method="post" action="/zwroc_polimer" class="d-inline">
+                                <input type="hidden" name="id" value="{{ p.id }}">
+                                <button class="btn btn-sm btn-secondary"><i class="fas fa-undo-alt"></i> Zwrot</button>
+                            </form>
+                            <form method="post" action="/uszkodz_polimer" class="d-inline">
+                                <input type="hidden" name="id" value="{{ p.id }}">
+                                <input type="text" name="powod" class="form-control form-control-sm d-inline w-auto" style="width:100px" placeholder="Powód">
+                                <button class="btn btn-sm btn-warning"><i class="fas fa-exclamation-triangle"></i> Uszkodz</button>
+                            </form>
+                            <form method="post" action="/utylizuj_polimer" class="d-inline">
+                                <input type="hidden" name="id" value="{{ p.id }}">
+                                <input type="text" name="powod" class="form-control form-control-sm d-inline w-auto" style="width:100px" placeholder="Powód">
+                                <button class="btn btn-sm btn-danger"><i class="fas fa-trash"></i> Utylizuj</button>
+                            </form>
+                        {% elif p.status == 'uszkodzona' %}
+                            <form method="post" action="/przywroc_polimer" class="d-inline">
+                                <input type="hidden" name="id" value="{{ p.id }}">
+                                <input type="date" name="nowa_data_waznosci" class="form-control form-control-sm d-inline w-auto" style="width:130px" placeholder="Nowa data">
+                                <button class="btn btn-sm btn-success"><i class="fas fa-recycle"></i> Przywróć</button>
+                            </form>
+                            <form method="post" action="/utylizuj_polimer" class="d-inline">
+                                <input type="hidden" name="id" value="{{ p.id }}">
+                                <input type="text" name="powod" class="form-control form-control-sm d-inline w-auto" style="width:100px" placeholder="Powód">
+                                <button class="btn btn-sm btn-danger"><i class="fas fa-trash"></i> Utylizuj</button>
+                            </form>
+                        {% elif p.status == 'zutylizowana' %}
+                            <!-- Brak akcji dla zutylizowanych -->
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="7" class="text-center">Brak polimerów spełniających kryteria</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    function showToast(message, type) {
+        const toastContainer = document.getElementById('toastContainer');
+        const toast = document.createElement('div');
+        toast.className = `toast align-items-center text-white bg-${type === 'success' ? 'success' : 'danger'} border-0 show`;
+        toast.setAttribute('role', 'alert');
+        toast.setAttribute('aria-live', 'assertive');
+        toast.setAttribute('aria-atomic', 'true');
+        toast.innerHTML = `
+            <div class="d-flex">
+                <div class="toast-body">${message}</div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        `;
+        toastContainer.appendChild(toast);
+        const bsToast = new bootstrap.Toast(toast, { delay: 3000 });
+        bsToast.show();
+        toast.addEventListener('hidden.bs.toast', () => toast.remove());
+    }
+
+    function attachFormHandlers(row) {
+        const forms = row.querySelectorAll('form');
+        forms.forEach(form => {
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                const action = this.action;
+                const formData = new FormData(this);
+                fetch(action, {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast(data.message, 'success');
+                        updateRow(row, data);
+                    } else {
+                        let msg = '';
+                        if (data.error === 'niedostepna') msg = '❌ Polimer nie jest dostępny!';
+                        else if (data.error === 'nie_w_uzyciu') msg = '❌ Polimer nie jest w użyciu!';
+                        else if (data.error === 'nie_mozna_uszkodzic') msg = '❌ Nie można uszkodzić tego polimeru!';
+                        else if (data.error === 'juz_zutylizowana') msg = '❌ Polimer już zutylizowany!';
+                        else if (data.error === 'blad_przywracania') msg = '❌ Błąd przywracania!';
+                        else msg = '❌ Wystąpił błąd!';
+                        showToast(msg, 'error');
+                    }
+                })
+                .catch(err => {
+                    showToast('❌ Błąd połączenia', 'error');
+                });
+            });
+        });
+    }
+
+    function updateRow(row, data) {
+        const id = row.dataset.id;
+        fetch(`/get_polimer_row/${id}`)
+            .then(response => response.text())
+            .then(html => {
+                const newRow = document.createElement('tr');
+                newRow.innerHTML = html;
+                row.parentNode.replaceChild(newRow, row);
+                attachFormHandlers(newRow);
+            })
+            .catch(err => console.error('Błąd pobierania wiersza:', err));
+    }
+
+    // Obsługa formularza dodawania (AJAX)
+    const addForm = document.getElementById('addForm');
+    if (addForm) {
+        addForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            fetch('/dodaj_polimer', {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(data.message, 'success');
+                    location.reload(); // proste przeładowanie po dodaniu nowego polimeru
+                } else {
+                    showToast('❌ Błąd dodawania polimeru', 'error');
+                }
+            });
+        });
+    }
+
+    // Podepnij eventy dla istniejących wierszy
+    document.querySelectorAll('#tableBody tr[data-id]').forEach(row => {
+        attachFormHandlers(row);
+    });
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+{% include '_notification_poll.html' %}
+</body>
+</html>
