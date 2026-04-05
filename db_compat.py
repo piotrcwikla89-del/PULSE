@@ -62,14 +62,26 @@ def adapt_sql_postgres(sql: str) -> str:
 
 
 class _PgCursor:
+    """Kursor z emulacją sqlite: lastrowid (psycopg2 go nie ma — używa LASTVAL() po INSERT)."""
+
     def __init__(self, raw: Any) -> None:
         self._raw = raw
+        self.lastrowid: int | None = None
 
     def execute(self, sql: str, params: Any = None):
         sql = adapt_sql_postgres(sql)
+        self.lastrowid = None
         if params is None:
-            return self._raw.execute(sql)
-        return self._raw.execute(sql, params)
+            self._raw.execute(sql)
+        else:
+            self._raw.execute(sql, params)
+        # Po INSERT z SERIAL/IDENTITY — jak sqlite3.Cursor.lastrowid
+        if sql.lstrip().upper().startswith("INSERT") and (self._raw.rowcount or 0) > 0:
+            self._raw.execute("SELECT LASTVAL()")
+            row = self._raw.fetchone()
+            if row is not None:
+                self.lastrowid = int(row[0])
+        return self
 
     def __getattr__(self, name: str):
         return getattr(self._raw, name)

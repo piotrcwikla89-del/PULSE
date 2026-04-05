@@ -208,11 +208,17 @@ def enrich_plans_with_lub_materials(cur, plan_rows):
     return out
 
 
-def alert_daty(data_str):
-    if not data_str:
+def alert_daty(data_val):
+    """Akceptuje str (SQLite) lub date/datetime (PostgreSQL / sterowniki DB)."""
+    if not data_val:
         return "ok"
-    data = datetime.strptime(data_str, "%Y-%m-%d")
-    dni = (datetime.now() - data).days
+    if isinstance(data_val, datetime):
+        d = data_val.date()
+    elif isinstance(data_val, date):
+        d = data_val
+    else:
+        d = datetime.strptime(str(data_val).strip()[:10], "%Y-%m-%d").date()
+    dni = (date.today() - d).days
     if dni > 365:
         return "przeterminowana"
     elif dni > 275:
