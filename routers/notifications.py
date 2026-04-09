@@ -1,12 +1,23 @@
 """
 Router: powiadomienia — widok, oznaczanie jako przeczytane, API polling.
 """
+from datetime import date, datetime, time as dt_time
+
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 from starlette.requests import Request
 
 from dependencies import get_db, require_auth
 from helpers import render_template
+
+
+def _row_to_dict(row) -> dict:
+    """Konwertuje wiersz bazy (sqlite3.Row lub psycopg2.DictRow) do JSON-bezpiecznego dict."""
+    d = dict(row)
+    for k, v in d.items():
+        if isinstance(v, (datetime, date, dt_time)):
+            d[k] = v.isoformat()
+    return d
 
 router = APIRouter()
 
@@ -72,4 +83,4 @@ def get_new_notifications(user=Depends(require_auth), conn=Depends(get_db)):
             (user["role"], user["username"]),
         )
     notifications = cur.fetchall()
-    return JSONResponse({"notifications": [dict(n) for n in notifications]})
+    return JSONResponse({"notifications": [_row_to_dict(n) for n in notifications]})

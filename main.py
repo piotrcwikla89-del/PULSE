@@ -35,6 +35,12 @@ app.include_router(notifications.router)
 
 # ==================== INICJALIZACJA BAZY DANYCH ====================
 
+def execute(cur, query, params=()):
+    if is_postgres():
+        query = query.replace("?", "%s")
+    return cur.execute(query, params)
+
+
 def migrate_schema(cur):
     """Dodaje brakujące kolumny w starszych plikach database.db."""
     if is_postgres():
@@ -48,11 +54,11 @@ def migrate_schema(cur):
         "production_plans": [("assortment_prep_status", "TEXT")],
     }
     for table, columns in migrations.items():
-        cur.execute("PRAGMA table_info(%s)" % (table,))
+        execute(cur, "PRAGMA table_info(%s)" % (table,))
         existing = {row[1] for row in cur.fetchall()}
         for col_name, col_type in columns:
             if col_name not in existing:
-                cur.execute("ALTER TABLE %s ADD COLUMN %s %s" % (table, col_name, col_type))
+                execute(cur, "ALTER TABLE %s ADD COLUMN %s %s" % (table, col_name, col_type))
 
 
 def init_db():
@@ -65,15 +71,15 @@ def init_db():
         migrate_schema(cur)
         seed_notification_settings_rows(cur)
         seed_default_users_postgres(cur)
-        cur.execute("SELECT COUNT(*) FROM shifts")
+        execute(cur, "SELECT COUNT(*) FROM shifts")
         if cur.fetchone()[0] == 0:
-            cur.execute("INSERT INTO shifts (name, start_time, end_time) VALUES (?, ?, ?)", ("dzień", "06:00", "18:00"))
-            cur.execute("INSERT INTO shifts (name, start_time, end_time) VALUES (?, ?, ?)", ("noc", "18:00", "06:00"))
+            execute(cur, "INSERT INTO shifts (name, start_time, end_time) VALUES (?, ?, ?)", ("dzień", "06:00", "18:00"))
+            execute(cur, "INSERT INTO shifts (name, start_time, end_time) VALUES (?, ?, ?)", ("noc", "18:00", "06:00"))
         conn.commit()
         conn.close()
         return
 
-    cur.execute("""
+    execute(cur, """
         CREATE TABLE IF NOT EXISTS farby (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             pantone TEXT NOT NULL,
@@ -84,7 +90,7 @@ def init_db():
             data_produkcji DATE NOT NULL
         )
     """)
-    cur.execute("""
+    execute(cur, """
         CREATE TABLE IF NOT EXISTS operacje (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             data TEXT NOT NULL,
@@ -96,7 +102,7 @@ def init_db():
             farba_id INTEGER
         )
     """)
-    cur.execute("""
+    execute(cur, """
         CREATE TABLE IF NOT EXISTS polymers (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             lub TEXT NOT NULL,
@@ -109,7 +115,7 @@ def init_db():
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-    cur.execute("""
+    execute(cur, """
         CREATE TABLE IF NOT EXISTS polymer_operations (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             data TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -120,7 +126,7 @@ def init_db():
             FOREIGN KEY (polymer_id) REFERENCES polymers(id) ON DELETE CASCADE
         )
     """)
-    cur.execute("""
+    execute(cur, """
         CREATE TABLE IF NOT EXISTS production_plans (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             machine TEXT NOT NULL,
@@ -137,7 +143,7 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-    cur.execute("""
+    execute(cur, """
         CREATE TABLE IF NOT EXISTS production_reports (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             machine TEXT NOT NULL,
@@ -155,7 +161,7 @@ def init_db():
             plan_id INTEGER
         )
     """)
-    cur.execute("""
+    execute(cur, """
         CREATE TABLE IF NOT EXISTS print_control_reports (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             machine TEXT NOT NULL,
@@ -169,7 +175,7 @@ def init_db():
             plan_id INTEGER
         )
     """)
-    cur.execute("""
+    execute(cur, """
         CREATE TABLE IF NOT EXISTS shifts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL UNIQUE,
@@ -177,7 +183,7 @@ def init_db():
             end_time TIME NOT NULL
         )
     """)
-    cur.execute("""
+    execute(cur, """
         CREATE TABLE IF NOT EXISTS notifications (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             machine TEXT,
@@ -190,7 +196,7 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-    cur.execute("""
+    execute(cur, """
         CREATE TABLE IF NOT EXISTS production_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             operation_type TEXT NOT NULL,
@@ -201,7 +207,7 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-    cur.execute("""
+    execute(cur, """
         CREATE TABLE IF NOT EXISTS events (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -213,13 +219,13 @@ def init_db():
             payload TEXT
         )
     """)
-    cur.execute("""
+    execute(cur, """
         CREATE TABLE IF NOT EXISTS notification_settings (
             event_key TEXT PRIMARY KEY,
             enabled INTEGER NOT NULL DEFAULT 1
         )
     """)
-    cur.execute("""
+    execute(cur, """
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE NOT NULL,
@@ -231,17 +237,17 @@ def init_db():
     migrate_schema(cur)
     seed_notification_settings_rows(cur)
 
-    cur.execute("SELECT 1 FROM users WHERE username=?", ("admin",))
+    execute(cur, "SELECT 1 FROM users WHERE username=?", ("admin",))
     if not cur.fetchone():
-        cur.execute("INSERT INTO users (username, role, password) VALUES (?, ?, ?)", ("admin", "admin", "admin123"))
-    cur.execute("SELECT 1 FROM users WHERE username=?", ("drukarz1",))
+        execute(cur, "INSERT INTO users (username, role, password) VALUES (?, ?, ?)", ("admin", "admin", "admin123"))
+    execute(cur, "SELECT 1 FROM users WHERE username=?", ("drukarz1",))
     if not cur.fetchone():
-        cur.execute("INSERT INTO users (username, role, password) VALUES (?, ?, ?)", ("drukarz1", "drukarz", "drukarz123"))
+        execute(cur, "INSERT INTO users (username, role, password) VALUES (?, ?, ?)", ("drukarz1", "drukarz", "drukarz123"))
 
-    cur.execute("SELECT COUNT(*) FROM shifts")
+    execute(cur, "SELECT COUNT(*) FROM shifts")
     if cur.fetchone()[0] == 0:
-        cur.execute("INSERT INTO shifts (name, start_time, end_time) VALUES (?, ?, ?)", ("dzień", "06:00", "18:00"))
-        cur.execute("INSERT INTO shifts (name, start_time, end_time) VALUES (?, ?, ?)", ("noc", "18:00", "06:00"))
+        execute(cur, "INSERT INTO shifts (name, start_time, end_time) VALUES (?, ?, ?)", ("dzień", "06:00", "18:00"))
+        execute(cur, "INSERT INTO shifts (name, start_time, end_time) VALUES (?, ?, ?)", ("noc", "18:00", "06:00"))
 
     conn.commit()
     conn.close()
