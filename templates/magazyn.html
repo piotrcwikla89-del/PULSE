@@ -264,7 +264,7 @@
     function attachFormHandlers(row) {
         const forms = row.querySelectorAll('form');
         forms.forEach(form => {
-            if (form.dataset.noAjax) return; // pomijamy formularze full-page
+            if ('noAjax' in form.dataset) return; // pomijamy formularze full-page
             form.addEventListener('submit', function(e) {
                 e.preventDefault();
                 const action = this.action;
