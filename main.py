@@ -441,8 +441,26 @@ def init_db():
         )
     """)
 
+    # Tabela użytkowników
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            role TEXT NOT NULL,
+            password TEXT
+        )
+    """)
+
     migrate_schema(cur)
     seed_notification_settings_rows(cur)
+
+    # Wstaw domyślnych użytkowników jeśli nie istnieją
+    cur.execute("SELECT 1 FROM users WHERE username=?", ("admin",))
+    if not cur.fetchone():
+        cur.execute("INSERT INTO users (username, role, password) VALUES (?, ?, ?)", ("admin", "admin", "admin123"))
+    cur.execute("SELECT 1 FROM users WHERE username=?", ("drukarz1",))
+    if not cur.fetchone():
+        cur.execute("INSERT INTO users (username, role, password) VALUES (?, ?, ?)", ("drukarz1", "drukarz", "drukarz123"))
 
     # Wstaw domyślne zmiany jeśli nie istnieją
     cur.execute("SELECT COUNT(*) FROM shifts")
@@ -1020,19 +1038,27 @@ def przywroc(
 ):
     conn = get_db()
     cur = conn.cursor()
-    cur.execute("SELECT * FROM farby WHERE id=?", (id,))
-    f = cur.fetchone()
-    if not f or f["status"] != "zutylizowana":
+    try:
+        cur.execute("SELECT * FROM farby WHERE id=?", (id,))
+        f = cur.fetchone()
+        if not f or f["status"] != "zutylizowana":
+            if is_ajax(request):
+                return JSONResponse({"success": False, "error": "blad_przywracania"}, status_code=400)
+            return RedirectResponse(build_redirect_url(request, {"error": "blad_przywracania"}), status_code=303)
+        cur.execute("""
+            UPDATE farby
+            SET status='dostepna', data_produkcji=?, waga=?
+            WHERE id=?
+        """, (nowa_data, nowa_waga, id))
+        dodaj_operacje(cur, "przywrócenie", f["pantone"], str(nowa_waga), f["polka"], f"nowa data: {nowa_data}", f["id"])
+        conn.commit()
+    except Exception:
+        conn.rollback()
         if is_ajax(request):
-            return JSONResponse({"success": False, "error": "blad_przywracania"}, status_code=400)
+            return JSONResponse({"success": False, "error": "blad_przywracania"}, status_code=500)
         return RedirectResponse(build_redirect_url(request, {"error": "blad_przywracania"}), status_code=303)
-    cur.execute("""
-        UPDATE farby
-        SET status='dostepna', data_produkcji=?, waga=?
-        WHERE id=?
-    """, (nowa_data, nowa_waga, id))
-    dodaj_operacje(cur, "przywrócenie", f["pantone"], str(nowa_waga), f["polka"], f"nowa data: {nowa_data}", f["id"])
-    conn.commit()
+    finally:
+        conn.close()
     if is_ajax(request):
         return JSONResponse({
             "success": True,

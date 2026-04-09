@@ -264,8 +264,9 @@
         fetch(`/get_row/${id}`)
             .then(response => response.text())
             .then(html => {
-                const newRow = document.createElement('tr');
-                newRow.innerHTML = html;
+                const temp = document.createElement('tbody');
+                temp.innerHTML = html;
+                const newRow = temp.firstElementChild;
                 row.parentNode.replaceChild(newRow, row);
                 attachFormHandlers(newRow);
             })
