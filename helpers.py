@@ -203,6 +203,7 @@ def seed_notification_settings_rows(cur):
 # ==================== MASZYNY / PLANY ====================
 
 PRODUCTION_MACHINES = ("D6", "D8", "D10")
+WINDING_MACHINES = ("P1", "P2")
 
 
 def normalize_shift_label(shift_val: str) -> str:

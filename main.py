@@ -23,7 +23,7 @@ app.add_middleware(SessionMiddleware, secret_key=_session_secret)
 app.mount("/static", StaticFiles(directory=os.path.join(get_base_path(), "static")), name="static")
 
 # ==================== ROUTERY ====================
-from routers import auth, admin, magazyn, polimery, maszyny, kierownik, notifications  # noqa: E402
+from routers import auth, admin, magazyn, polimery, maszyny, kierownik, notifications, przewijarki  # noqa: E402
 
 app.include_router(auth.router)
 app.include_router(admin.router)
@@ -32,6 +32,7 @@ app.include_router(polimery.router)
 app.include_router(maszyny.router)
 app.include_router(kierownik.router)
 app.include_router(notifications.router)
+app.include_router(przewijarki.router)
 
 # ==================== INICJALIZACJA BAZY DANYCH ====================
 
@@ -59,7 +60,23 @@ def migrate_schema(cur):
         for col_name, col_type in columns:
             if col_name not in existing:
                 execute(cur, "ALTER TABLE %s ADD COLUMN %s %s" % (table, col_name, col_type))
-    # Tworzenie tabeli farba_lub_assignments jeśli nie istnieje (migracja starszych db)
+    # Tworzenie tabel jeśli nie istnieją (migracja starszych db)
+    execute(cur, """
+        CREATE TABLE IF NOT EXISTS winding_reports (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            machine TEXT NOT NULL,
+            plan_id INTEGER,
+            date DATE NOT NULL,
+            shift TEXT NOT NULL,
+            order_number TEXT NOT NULL,
+            cut_meters REAL NOT NULL DEFAULT 0,
+            ok_meters REAL NOT NULL DEFAULT 0,
+            nok_meters REAL NOT NULL DEFAULT 0,
+            notes TEXT,
+            created_by TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
     execute(cur, """
         CREATE TABLE IF NOT EXISTS farba_lub_assignments (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -256,6 +273,22 @@ def init_db():
             username TEXT UNIQUE NOT NULL,
             role TEXT NOT NULL,
             password TEXT
+        )
+    """)
+    execute(cur, """
+        CREATE TABLE IF NOT EXISTS winding_reports (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            machine TEXT NOT NULL,
+            plan_id INTEGER,
+            date DATE NOT NULL,
+            shift TEXT NOT NULL,
+            order_number TEXT NOT NULL,
+            cut_meters REAL NOT NULL DEFAULT 0,
+            ok_meters REAL NOT NULL DEFAULT 0,
+            nok_meters REAL NOT NULL DEFAULT 0,
+            notes TEXT,
+            created_by TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
 

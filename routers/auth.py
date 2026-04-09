@@ -41,6 +41,8 @@ def login(
         request.session["role"] = user["role"]
         if user["role"] == "drukarz":
             return RedirectResponse("/select-machine", status_code=303)
+        if user["role"] == "operator_przewijarki":
+            return RedirectResponse("/select-przewijarka", status_code=303)
         return RedirectResponse("/dashboard", status_code=303)
     else:
         cur.execute("SELECT username FROM users WHERE role != 'admin' ORDER BY username")
@@ -65,6 +67,11 @@ def dashboard(request: Request, user=Depends(require_auth)):
         if not machine:
             return RedirectResponse("/select-machine", status_code=303)
         return RedirectResponse(f"/maszyna/{machine.lower()}/plany", status_code=303)
+    if user["role"] == "operator_przewijarki":
+        machine = request.session.get("machine")
+        if not machine:
+            return RedirectResponse("/select-przewijarka", status_code=303)
+        return RedirectResponse(f"/przewijarka/{machine.lower()}/plany", status_code=303)
     return render_template("dashboard.html", {
         "user": {"username": user["username"], "role": user["role"]}
     })

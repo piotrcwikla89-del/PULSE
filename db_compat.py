@@ -142,6 +142,21 @@ def migrate_schema_postgres(cur) -> None:
         for col_name, col_type in columns:
             if col_name not in existing:
                 cur.execute('ALTER TABLE "%s" ADD COLUMN %s %s' % (table, col_name, col_type))
+    # Migracja: tabela winding_reports
+    cur.execute(
+        "SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='winding_reports'"
+    )
+    if not cur.fetchone():
+        cur.execute("""
+            CREATE TABLE winding_reports (
+                id SERIAL PRIMARY KEY, machine TEXT NOT NULL, plan_id INTEGER,
+                date DATE NOT NULL, shift TEXT NOT NULL, order_number TEXT NOT NULL,
+                cut_meters DOUBLE PRECISION NOT NULL DEFAULT 0,
+                ok_meters DOUBLE PRECISION NOT NULL DEFAULT 0,
+                nok_meters DOUBLE PRECISION NOT NULL DEFAULT 0,
+                notes TEXT, created_by TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)
+        """)
     # Migracja: tabela farba_lub_assignments
     cur.execute(
         "SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='farba_lub_assignments'"
@@ -320,6 +335,22 @@ def init_postgres_schema(cur) -> None:
             assigned_by TEXT NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(farba_id, lub_number)
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS winding_reports (
+            id SERIAL PRIMARY KEY,
+            machine TEXT NOT NULL,
+            plan_id INTEGER,
+            date DATE NOT NULL,
+            shift TEXT NOT NULL,
+            order_number TEXT NOT NULL,
+            cut_meters DOUBLE PRECISION NOT NULL DEFAULT 0,
+            ok_meters DOUBLE PRECISION NOT NULL DEFAULT 0,
+            nok_meters DOUBLE PRECISION NOT NULL DEFAULT 0,
+            notes TEXT,
+            created_by TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """,
         """

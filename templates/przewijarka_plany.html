@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plany - {{ machine }} - System Drukarni</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body class="bg-light">
+<div class="container mt-4">
+
+    {% if success_msg == 'przeniesiono' %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        Zlecenie zostało przeniesione.
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endif %}
+    {% if error_msg %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {% if error_msg == 'brak_zlecenia' %}Nie znaleziono zlecenia na tej maszynie.
+        {% elif error_msg == 'tylko_planowane' %}Można przenosić tylko zlecenia zaplanowane.
+        {% else %}Operacja nie powiodła się.{% endif %}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endif %}
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="fas fa-wind"></i> Plany — Przewijarka {{ machine }}</h1>
+        <div>
+            <a href="/select-przewijarka" class="btn btn-outline-primary btn-sm">
+                <i class="fas fa-exchange-alt"></i> Zmień przewijarkę
+            </a>
+            <a href="/logout" class="btn btn-outline-danger btn-sm ms-1">
+                <i class="fas fa-sign-out-alt"></i> Wyloguj
+            </a>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-header">
+            <h5 class="mb-0">Zaplanowane zlecenia</h5>
+        </div>
+        <div class="card-body">
+            {% if plans %}
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Nr Zlecenia</th>
+                            <th>Nr Artwork</th>
+                            <th>Nazwa Zlecenia</th>
+                            <th>Laminat</th>
+                            <th class="text-end">Metry</th>
+                            <th class="text-end">Sztuki</th>
+                            <th>Data</th>
+                            <th>Akcje</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in plans %}
+                        <tr>
+                            <td><strong>{{ p.order_number }}</strong></td>
+                            <td>{{ p.artwork_number }}</td>
+                            <td>{{ p.order_name }}</td>
+                            <td>{{ p.laminate }}</td>
+                            <td class="text-end"><strong>{{ p.meters }}</strong></td>
+                            <td class="text-end"><strong>{{ p.pieces }}</strong></td>
+                            <td>{{ p.planned_date }}</td>
+                            <td>
+                                <a href="/przewijarka/{{ machine|lower }}/job/{{ p.id }}"
+                                   class="btn btn-sm btn-primary">
+                                    <i class="fas fa-play-circle"></i> Wybierz
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center text-muted py-5">
+                <i class="fas fa-check-circle fa-3x mb-3 text-success"></i>
+                <p>Brak zaplanowanych zleceń dla przewijarki {{ machine }}.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="text-center mt-4 text-muted small">
+        Zalogowany: <strong>{{ user.username }}</strong>
+    </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
