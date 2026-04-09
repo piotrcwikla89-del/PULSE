@@ -53,6 +53,14 @@ def adapt_sql_postgres(sql: str) -> str:
         "INSERT INTO notification_settings (event_key, enabled) VALUES (%s, 1) ON CONFLICT (event_key) DO NOTHING",
     )
     s = s.replace(
+        "INSERT OR IGNORE INTO farba_lub_assignments (farba_id, lub_number, plan_id, assigned_by) VALUES (?, ?, ?, ?)",
+        "INSERT INTO farba_lub_assignments (farba_id, lub_number, plan_id, assigned_by) VALUES (%s, %s, %s, %s) ON CONFLICT (farba_id, lub_number) DO NOTHING",
+    )
+    s = s.replace(
+        "INSERT OR REPLACE INTO system_settings (key, value) VALUES ('edit_password', ?)",
+        "INSERT INTO system_settings (key, value) VALUES ('edit_password', %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
+    )
+    s = s.replace(
         "INSERT INTO production_log (operation_type, description, machine, plan_id, user, created_at)",
         'INSERT INTO production_log (operation_type, description, machine, plan_id, "user", created_at)',
     )

@@ -84,13 +84,6 @@ def migrate_schema(cur):
         )
     """)
     execute(cur, """
-        CREATE TABLE IF NOT EXISTS system_settings (
-            key TEXT PRIMARY KEY,
-            value TEXT NOT NULL
-        )
-    """)
-    execute(cur, "INSERT OR IGNORE INTO system_settings (key, value) VALUES (?, ?)", ("edit_password", "haslo"))
-    execute(cur, """
         CREATE TABLE IF NOT EXISTS farba_lub_assignments (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             farba_id INTEGER NOT NULL,
