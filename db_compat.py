@@ -142,6 +142,22 @@ def migrate_schema_postgres(cur) -> None:
         for col_name, col_type in columns:
             if col_name not in existing:
                 cur.execute('ALTER TABLE "%s" ADD COLUMN %s %s' % (table, col_name, col_type))
+    # Migracja: tabela farba_lub_assignments
+    cur.execute(
+        "SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='farba_lub_assignments'"
+    )
+    if not cur.fetchone():
+        cur.execute("""
+            CREATE TABLE farba_lub_assignments (
+                id SERIAL PRIMARY KEY,
+                farba_id INTEGER NOT NULL,
+                lub_number TEXT NOT NULL,
+                plan_id INTEGER,
+                assigned_by TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(farba_id, lub_number)
+            )
+        """)
 
 
 def init_postgres_schema(cur) -> None:
@@ -293,6 +309,17 @@ def init_postgres_schema(cur) -> None:
         CREATE TABLE IF NOT EXISTS notification_settings (
             event_key TEXT PRIMARY KEY,
             enabled INTEGER NOT NULL DEFAULT 1
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS farba_lub_assignments (
+            id SERIAL PRIMARY KEY,
+            farba_id INTEGER NOT NULL,
+            lub_number TEXT NOT NULL,
+            plan_id INTEGER,
+            assigned_by TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(farba_id, lub_number)
         )
         """,
         """

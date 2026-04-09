@@ -63,6 +63,20 @@ def magazyn(
         if row:
             assign_plan = dict(row)
 
+    # Pobierz przypisania LUB z tabeli junction dla wyświetlenia przy farbach
+    lub_assignments: dict = {}
+    try:
+        cur.execute("SELECT farba_id, lub_number FROM farba_lub_assignments")
+        for row in cur.fetchall():
+            lub_assignments.setdefault(row["farba_id"], []).append(row["lub_number"])
+    except Exception:
+        pass
+
+    # Doklej przypisania do każdej farby
+    for fb in farby:
+        extra_lubs = [l for l in lub_assignments.get(fb["id"], []) if l != (fb.get("lub") or "")]
+        fb["extra_lubs"] = extra_lubs
+
     return render_template("magazyn.html", {
         "farby": farby,
         "licznik_przeterminowane": licznik_przeterminowane,
@@ -82,6 +96,7 @@ def magazyn(
         "assign_machine": assign_machine,
         "return_to": return_to,
         "assign_plan": assign_plan,
+        "can_edit": user["role"] in ("manager", "admin"),
     })
 
 
@@ -96,8 +111,7 @@ def farba_przypisz_lub(
     user=Depends(require_auth),
     conn=Depends(get_db),
 ):
-    """Ręczne przypisanie farby do numeru LUB i zlecenia."""
-    # Walidacja return_to przed open-redirect
+    """Ręczne przypisanie farby do numeru LUB — zapis w tabeli farba_lub_assignments (wiele LUB)."""
     safe_return = return_to if return_to.startswith("/maszyna/") or return_to.startswith("/plany") else ""
     cur = conn.cursor()
     cur.execute("SELECT * FROM farby WHERE id=?", (farba_id,))
@@ -105,7 +119,11 @@ def farba_przypisz_lub(
     if not f:
         redirect = safe_return or "/magazyn"
         return RedirectResponse(f"{redirect}?error=notfound", status_code=303)
-    cur.execute("UPDATE farby SET lub=? WHERE id=?", (assign_lub, farba_id))
+    # Wstaw lub zaktualizuj przypisanie w tabeli junction
+    cur.execute(
+        "INSERT OR IGNORE INTO farba_lub_assignments (farba_id, lub_number, plan_id, assigned_by) VALUES (?, ?, ?, ?)",
+        (farba_id, assign_lub, plan_id or None, user["username"]),
+    )
     dodaj_operacje(
         cur, "przypisanie_lub", f["pantone"], str(f["waga"]), f["polka"],
         f"Przypisano do LUB {assign_lub} (zlecenie ID {plan_id}) przez {user['username']}",
@@ -120,6 +138,52 @@ def farba_przypisz_lub(
     redirect = safe_return or "/magazyn"
     sep = "&" if "?" in redirect else "?"
     return RedirectResponse(f"{redirect}{sep}success=przypisano_farbe", status_code=303)
+
+
+@router.post("/farba/{farba_id}/edytuj")
+def farba_edytuj(
+    farba_id: int,
+    request: Request,
+    pantone: str = Form(...),
+    lub: str = Form(""),
+    polka: str = Form(""),
+    waga: float = Form(...),
+    data_produkcji: str = Form(...),
+    user=Depends(require_auth),
+    conn=Depends(get_db),
+):
+    """Edycja danych farby — tylko kierownik i admin."""
+    if user["role"] not in ("manager", "admin"):
+        return RedirectResponse("/magazyn?error=brak_dostepu", status_code=303)
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM farby WHERE id=?", (farba_id,))
+    f = cur.fetchone()
+    if not f:
+        return RedirectResponse("/magazyn?error=notfound", status_code=303)
+    cur.execute(
+        "UPDATE farby SET pantone=?, lub=?, polka=?, waga=?, data_produkcji=? WHERE id=?",
+        (pantone, lub, polka, waga, data_produkcji, farba_id),
+    )
+    dodaj_operacje(cur, "edycja", pantone, str(waga), polka, f"Edycja przez {user['username']}", farba_id)
+    conn.commit()
+    return RedirectResponse("/magazyn?success=edytowano", status_code=303)
+
+
+@router.post("/farba/{farba_id}/usun-lub")
+def farba_usun_lub(
+    farba_id: int,
+    request: Request,
+    lub_number: str = Form(...),
+    user=Depends(require_auth),
+    conn=Depends(get_db),
+):
+    """Usunięcie przypisania farby do LUB — tylko kierownik i admin."""
+    if user["role"] not in ("manager", "admin"):
+        return RedirectResponse("/magazyn?error=brak_dostepu", status_code=303)
+    cur = conn.cursor()
+    cur.execute("DELETE FROM farba_lub_assignments WHERE farba_id=? AND lub_number=?", (farba_id, lub_number))
+    conn.commit()
+    return RedirectResponse("/magazyn?success=usunieto_lub", status_code=303)
 
 
 @router.post("/dodaj_farba")

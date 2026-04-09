@@ -237,14 +237,38 @@ def enrich_plans_with_lub_materials(cur, plan_rows):
     if lubs:
         placeholders = ",".join("?" * len(lubs))
         t = tuple(lubs)
+        # 1. Farby z polem lub= (klasyczne przypisanie)
         cur.execute("SELECT * FROM farby WHERE lub IN (%s)" % placeholders, t)
+        seen_per_lub: dict = defaultdict(set)
         for f in cur.fetchall():
             fd = dict(f)
             fd["mag_alert"] = alert_daty(f["data_produkcji"]) if f["data_produkcji"] else "ok"
-            farby_by_lub[f["lub"]].append(fd)
+            if f["lub"]:
+                farby_by_lub[f["lub"]].append(fd)
+                seen_per_lub[f["lub"]].add(f["id"])
+        # 2. Farby z tabeli farba_lub_assignments (ręczne / wielokrotne)
+        try:
+            cur.execute(
+                "SELECT f.*, fla.lub_number AS assigned_lub FROM farby f "
+                "JOIN farba_lub_assignments fla ON f.id = fla.farba_id "
+                "WHERE fla.lub_number IN (%s)" % placeholders,
+                t,
+            )
+            for f in cur.fetchall():
+                fd = dict(f)
+                assigned_lub = fd.pop("assigned_lub", None)
+                if not assigned_lub:
+                    continue
+                fd["mag_alert"] = alert_daty(fd.get("data_produkcji")) if fd.get("data_produkcji") else "ok"
+                if fd["id"] not in seen_per_lub.get(assigned_lub, set()):
+                    farby_by_lub[assigned_lub].append(fd)
+                    seen_per_lub[assigned_lub].add(fd["id"])
+        except Exception:
+            pass  # tabela może nie istnieć na starszych bazach
+        # 3. Polimery
         cur.execute("SELECT * FROM polymers WHERE lub IN (%s)" % placeholders, t)
         for po in cur.fetchall():
-            pol_by_lub[po["lub"]].append(po)
+            pol_by_lub[po["lub"]].append(dict(po))
     out = []
     for p in plan_rows:
         d = dict(p)
@@ -260,3 +284,29 @@ def enrich_plans_with_lub_materials(cur, plan_rows):
             d["polimery_prep_status"] = "pending"
         out.append(d)
     return out
+
+
+def get_lub_farby(cur, lub_number: str) -> list:
+    """Zwraca wszystkie farby powiązane z danym numerem LUB (bezpośrednio i przez assignment)."""
+    result = []
+    seen_ids: set = set()
+    cur.execute("SELECT * FROM farby WHERE lub=?", (lub_number,))
+    for f in cur.fetchall():
+        fd = dict(f)
+        fd["mag_alert"] = alert_daty(fd.get("data_produkcji")) if fd.get("data_produkcji") else "ok"
+        result.append(fd)
+        seen_ids.add(fd["id"])
+    try:
+        cur.execute(
+            "SELECT f.* FROM farby f JOIN farba_lub_assignments fla ON f.id=fla.farba_id WHERE fla.lub_number=?",
+            (lub_number,),
+        )
+        for f in cur.fetchall():
+            if f["id"] not in seen_ids:
+                fd = dict(f)
+                fd["mag_alert"] = alert_daty(fd.get("data_produkcji")) if fd.get("data_produkcji") else "ok"
+                result.append(fd)
+                seen_ids.add(fd["id"])
+    except Exception:
+        pass
+    return result

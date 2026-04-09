@@ -76,6 +76,7 @@ def polimery(
         "assign_machine": assign_machine,
         "return_to": return_to,
         "assign_plan": assign_plan,
+        "can_edit": user["role"] in ("manager", "admin"),
     })
 
 
@@ -313,3 +314,35 @@ def polimer_przypisz_lub(
     redirect = safe_return or "/polimery"
     sep = "&" if "?" in redirect else "?"
     return RedirectResponse(f"{redirect}{sep}success=przypisano_polimer", status_code=303)
+
+
+@router.post("/polimer/{polimer_id}/edytuj")
+def polimer_edytuj(
+    polimer_id: int,
+    request: Request,
+    lub: str = Form(...),
+    kolor: str = Form(...),
+    lokalizacja: str = Form(""),
+    data_waznosci: str = Form(""),
+    uwagi: str = Form(""),
+    user=Depends(require_auth),
+    conn=Depends(get_db),
+):
+    """Edycja danych polimeru — tylko kierownik i admin."""
+    if user["role"] not in ("manager", "admin"):
+        return RedirectResponse("/polimery?error=brak_dostepu", status_code=303)
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM polymers WHERE id=?", (polimer_id,))
+    p = cur.fetchone()
+    if not p:
+        return RedirectResponse("/polimery?error=notfound", status_code=303)
+    cur.execute(
+        "UPDATE polymers SET lub=?, kolor=?, lokalizacja=?, data_waznosci=?, uwagi=? WHERE id=?",
+        (lub, kolor, lokalizacja, data_waznosci if data_waznosci else None, uwagi, polimer_id),
+    )
+    cur.execute(
+        "INSERT INTO polymer_operations (typ, polymer_id, lokalizacja, uwagi) VALUES ('edycja', ?, ?, ?)",
+        (polimer_id, lokalizacja, f"Edycja przez {user['username']}"),
+    )
+    conn.commit()
+    return RedirectResponse("/polimery?success=edytowano", status_code=303)

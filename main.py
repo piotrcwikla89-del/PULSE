@@ -59,6 +59,18 @@ def migrate_schema(cur):
         for col_name, col_type in columns:
             if col_name not in existing:
                 execute(cur, "ALTER TABLE %s ADD COLUMN %s %s" % (table, col_name, col_type))
+    # Tworzenie tabeli farba_lub_assignments jeśli nie istnieje (migracja starszych db)
+    execute(cur, """
+        CREATE TABLE IF NOT EXISTS farba_lub_assignments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            farba_id INTEGER NOT NULL,
+            lub_number TEXT NOT NULL,
+            plan_id INTEGER,
+            assigned_by TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(farba_id, lub_number)
+        )
+    """)
 
 
 def init_db():
@@ -225,6 +237,17 @@ def init_db():
         CREATE TABLE IF NOT EXISTS notification_settings (
             event_key TEXT PRIMARY KEY,
             enabled INTEGER NOT NULL DEFAULT 1
+        )
+    """)
+    execute(cur, """
+        CREATE TABLE IF NOT EXISTS farba_lub_assignments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            farba_id INTEGER NOT NULL,
+            lub_number TEXT NOT NULL,
+            plan_id INTEGER,
+            assigned_by TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(farba_id, lub_number)
         )
     """)
     execute(cur, """

@@ -13,6 +13,7 @@ from dependencies import get_db, is_ajax, require_auth, require_manager_or_admin
 from helpers import (
     PRODUCTION_MACHINES,
     enrich_plans_with_lub_materials,
+    get_lub_farby,
     insert_notification_if_enabled,
     log_domain_event,
     log_production_operation,
@@ -134,7 +135,39 @@ def potwierdz_asortyment(
     if not plan or plan["status"] != "planned":
         return RedirectResponse(f"/maszyna/{machine.lower()}/plany?error=brak_zlecenia", status_code=303)
 
+    lub = plan["lub_number"]
+
     if user["role"] == "operator_mieszalni":
+        # --- Walidacja farb ---
+        if not lub:
+            return RedirectResponse(
+                f"/maszyna/{machine.lower()}/plany?error=brak_lub&plan_id={plan_id}", status_code=303
+            )
+        farby = get_lub_farby(cur, lub)
+        if not farby:
+            return RedirectResponse(
+                f"/maszyna/{machine.lower()}/plany?error=brak_farb&plan_id={plan_id}", status_code=303
+            )
+        bledy = []
+        for f in farby:
+            if f["status"] == "zutylizowana":
+                bledy.append(f"Farba {f['pantone']} jest zutylizowana")
+            elif f["mag_alert"] == "przeterminowana":
+                bledy.append(f"Farba {f['pantone']} jest przeterminowana")
+        if bledy:
+            import urllib.parse
+            bledy_str = urllib.parse.quote(" | ".join(bledy[:3]))
+            return RedirectResponse(
+                f"/maszyna/{machine.lower()}/plany?error=asortyment_blad&plan_id={plan_id}&bledy={bledy_str}",
+                status_code=303,
+            )
+        # Auto-pobranie: dostępne farby → w_uzyciu
+        from helpers import dodaj_operacje as _dodaj_op, alert_daty as _alert
+        for f in farby:
+            if f["status"] == "dostepna":
+                cur.execute("UPDATE farby SET status='w_uzyciu' WHERE id=?", (f["id"],))
+                _dodaj_op(cur, "wydanie_asortyment", f["pantone"], str(f["waga"]), f.get("polka", ""),
+                          f"Auto-pobranie dla LUB {lub} zlecenie {plan['order_number']}", f["id"])
         cur.execute(
             "UPDATE production_plans SET farby_prep_status='ready' WHERE id=? AND machine=?",
             (plan_id, machine.upper()),
@@ -142,7 +175,40 @@ def potwierdz_asortyment(
         success_key = "asortyment_farby"
         desc = f"Farby zatwierdzone dla {plan['order_number']} ({machine.upper()}) przez {user['username']}"
         notif_msg = f"Zatwierdzono przygotowanie farb dla {plan['order_number']} na {machine.upper()}"
+
     else:  # prepress
+        # --- Walidacja polimerów ---
+        if not lub:
+            return RedirectResponse(
+                f"/maszyna/{machine.lower()}/plany?error=brak_lub&plan_id={plan_id}", status_code=303
+            )
+        cur.execute("SELECT * FROM polymers WHERE lub=?", (lub,))
+        polimery = [dict(p) for p in cur.fetchall()]
+        if not polimery:
+            return RedirectResponse(
+                f"/maszyna/{machine.lower()}/plany?error=brak_polimerów&plan_id={plan_id}", status_code=303
+            )
+        bledy = []
+        for p in polimery:
+            if p["status"] == "zutylizowana":
+                bledy.append(f"Polimer {p['kolor']} jest zutylizowany")
+            elif p["status"] == "uszkodzona":
+                bledy.append(f"Polimer {p['kolor']} jest uszkodzony")
+        if bledy:
+            import urllib.parse
+            bledy_str = urllib.parse.quote(" | ".join(bledy[:3]))
+            return RedirectResponse(
+                f"/maszyna/{machine.lower()}/plany?error=asortyment_blad&plan_id={plan_id}&bledy={bledy_str}",
+                status_code=303,
+            )
+        # Auto-pobranie: dostępne polimery → w_uzyciu
+        for p in polimery:
+            if p["status"] == "dostepna":
+                cur.execute("UPDATE polymers SET status='w_uzyciu' WHERE id=?", (p["id"],))
+                cur.execute(
+                    "INSERT INTO polymer_operations (typ, polymer_id, lokalizacja, uwagi) VALUES ('wydanie_asortyment', ?, ?, ?)",
+                    (p["id"], p.get("lokalizacja"), f"Auto-pobranie dla LUB {lub} zlecenie {plan['order_number']}"),
+                )
         cur.execute(
             "UPDATE production_plans SET polimery_prep_status='ready' WHERE id=? AND machine=?",
             (plan_id, machine.upper()),
