@@ -200,6 +200,16 @@ def seed_notification_settings_rows(cur):
         )
 
 
+def get_edit_password(cur) -> str:
+    """Zwraca aktualne hasło edycji z system_settings (domyślnie 'haslo')."""
+    try:
+        cur.execute("SELECT value FROM system_settings WHERE key='edit_password'")
+        row = cur.fetchone()
+        return row["value"] if row else "haslo"
+    except Exception:
+        return "haslo"
+
+
 # ==================== MASZYNY / PLANY ====================
 
 PRODUCTION_MACHINES = ("D6", "D8", "D10")

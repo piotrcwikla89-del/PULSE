@@ -60,7 +60,13 @@ def migrate_schema(cur):
         for col_name, col_type in columns:
             if col_name not in existing:
                 execute(cur, "ALTER TABLE %s ADD COLUMN %s %s" % (table, col_name, col_type))
-    # Tworzenie tabel jeśli nie istnieją (migracja starszych db)
+    execute(cur, """
+        CREATE TABLE IF NOT EXISTS system_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        )
+    """)
+    execute(cur, "INSERT OR IGNORE INTO system_settings (key, value) VALUES (?, ?)", ("edit_password", "haslo"))
     execute(cur, """
         CREATE TABLE IF NOT EXISTS winding_reports (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -77,6 +83,13 @@ def migrate_schema(cur):
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+    execute(cur, """
+        CREATE TABLE IF NOT EXISTS system_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        )
+    """)
+    execute(cur, "INSERT OR IGNORE INTO system_settings (key, value) VALUES (?, ?)", ("edit_password", "haslo"))
     execute(cur, """
         CREATE TABLE IF NOT EXISTS farba_lub_assignments (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -291,6 +304,13 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+    execute(cur, """
+        CREATE TABLE IF NOT EXISTS system_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        )
+    """)
+    execute(cur, "INSERT OR IGNORE INTO system_settings (key, value) VALUES (?, ?)", ("edit_password", "haslo"))
 
     migrate_schema(cur)
     seed_notification_settings_rows(cur)

@@ -14,6 +14,7 @@ from helpers import (
     NOTIFICATION_EVENT_LABELS,
     PRODUCTION_MACHINES,
     dodaj_operacje,
+    get_edit_password,
     render_template,
 )
 
@@ -43,6 +44,7 @@ def admin_panel(
         "users": users,
         "shifts": shifts,
         "notification_prefs": notification_prefs,
+        "edit_password_current": get_edit_password(cur),
         "user": {"username": request.session.get("username"), "role": request.session.get("role")},
     }
     if error:
@@ -132,6 +134,25 @@ def change_password(
         )
         conn.commit()
     return RedirectResponse("/admin", status_code=303)
+
+
+@router.post("/set-edit-password")
+def set_edit_password(
+    request: Request,
+    new_edit_password: str = Form(...),
+    confirm_edit_password: str = Form(...),
+    admin=Depends(require_admin),
+    conn=Depends(get_db),
+):
+    if new_edit_password != confirm_edit_password:
+        return RedirectResponse("/admin?error=Has%C5%82a+niezgodne", status_code=303)
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT OR REPLACE INTO system_settings (key, value) VALUES ('edit_password', ?)",
+        (new_edit_password,),
+    )
+    conn.commit()
+    return RedirectResponse("/admin?success=Has%C5%82o+korekty+zmienione", status_code=303)
 
 
 @router.post("/import_farby")

@@ -142,6 +142,14 @@ def migrate_schema_postgres(cur) -> None:
         for col_name, col_type in columns:
             if col_name not in existing:
                 cur.execute('ALTER TABLE "%s" ADD COLUMN %s %s' % (table, col_name, col_type))
+    # Migracja: tabela system_settings
+    cur.execute(
+        "SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='system_settings'"
+    )
+    if not cur.fetchone():
+        cur.execute("CREATE TABLE system_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+    cur.execute("INSERT INTO system_settings (key, value) VALUES (%s, %s) ON CONFLICT (key) DO NOTHING",
+                ("edit_password", "haslo"))
     # Migracja: tabela winding_reports
     cur.execute(
         "SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='winding_reports'"
@@ -335,6 +343,12 @@ def init_postgres_schema(cur) -> None:
             assigned_by TEXT NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(farba_id, lub_number)
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS system_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
         )
         """,
         """

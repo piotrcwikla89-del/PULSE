@@ -7,7 +7,7 @@ from starlette.requests import Request
 
 from db_compat import INTEGRITY_ERRORS
 from dependencies import get_db, is_ajax, require_auth
-from helpers import log_production_operation, render_template
+from helpers import get_edit_password, log_production_operation, render_template
 
 router = APIRouter()
 
@@ -76,7 +76,8 @@ def polimery(
         "assign_machine": assign_machine,
         "return_to": return_to,
         "assign_plan": assign_plan,
-        "can_edit": user["role"] in ("manager", "admin"),
+        "can_edit": user["role"] in ("manager", "admin", "prepress"),
+        "needs_edit_password": user["role"] == "prepress",
     })
 
 
@@ -325,13 +326,19 @@ def polimer_edytuj(
     lokalizacja: str = Form(""),
     data_waznosci: str = Form(""),
     uwagi: str = Form(""),
+    edit_password: str = Form(""),
     user=Depends(require_auth),
     conn=Depends(get_db),
 ):
-    """Edycja danych polimeru — tylko kierownik i admin."""
-    if user["role"] not in ("manager", "admin"):
+    """Edycja danych polimeru — kierownik/admin bez hasła; prepress z hasłem."""
+    allowed = ("manager", "admin", "prepress")
+    if user["role"] not in allowed:
         return RedirectResponse("/polimery?error=brak_dostepu", status_code=303)
     cur = conn.cursor()
+    if user["role"] == "prepress":
+        correct = get_edit_password(cur)
+        if edit_password != correct:
+            return RedirectResponse("/polimery?error=bledne_haslo", status_code=303)
     cur.execute("SELECT * FROM polymers WHERE id=?", (polimer_id,))
     p = cur.fetchone()
     if not p:

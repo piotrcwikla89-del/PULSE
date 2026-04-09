@@ -129,6 +129,24 @@
     </div>
 
     <div class="card shadow-sm mb-4">
+        <div class="card-header bg-warning text-dark"><i class="fas fa-lock"></i> Hasło korekty magazynów</div>
+        <div class="card-body">
+            <p class="text-muted small mb-3">Hasło wymagane od <strong>operatora mieszalni</strong> i <strong>prepress</strong> przy edycji pozycji w magazynach. Aktualnie: <code>{{ edit_password_current }}</code></p>
+            <form method="post" action="/admin/set-edit-password" class="row g-3">
+                <div class="col-md-4">
+                    <input type="password" name="new_edit_password" class="form-control" placeholder="Nowe hasło korekty" required>
+                </div>
+                <div class="col-md-4">
+                    <input type="password" name="confirm_edit_password" class="form-control" placeholder="Powtórz hasło" required>
+                </div>
+                <div class="col-md-4">
+                    <button type="submit" class="btn btn-warning"><i class="fas fa-save"></i> Zmień hasło korekty</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
         <div class="card-header bg-primary text-white"><i class="fas fa-file-import"></i> Import danych (CSV)</div>
         <div class="card-body">
             <div class="row g-3">
@@ -188,6 +206,8 @@
                                     <span class="badge bg-success"><i class="fas fa-blender"></i> Operator Mieszalni</span>
                                 {% elif u.role == 'prepress' %}
                                     <span class="badge bg-info"><i class="fas fa-images"></i> Prepress</span>
+                                {% elif u.role == 'operator_przewijarki' %}
+                                    <span class="badge bg-primary"><i class="fas fa-wind"></i> Operator Przewijarki</span>
                                 {% else %}
                                     <span class="badge bg-secondary"><i class="fas fa-user"></i> {{ u.role }}</span>
                                 {% endif %}

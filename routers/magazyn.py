@@ -15,6 +15,7 @@ from helpers import (
     build_redirect_url,
     dodaj_operacje,
     filtruj_farby,
+    get_edit_password,
     log_production_operation,
     render_template,
 )
@@ -96,7 +97,8 @@ def magazyn(
         "assign_machine": assign_machine,
         "return_to": return_to,
         "assign_plan": assign_plan,
-        "can_edit": user["role"] in ("manager", "admin"),
+        "can_edit": user["role"] in ("manager", "admin", "operator_mieszalni"),
+        "needs_edit_password": user["role"] == "operator_mieszalni",
     })
 
 
@@ -149,13 +151,19 @@ def farba_edytuj(
     polka: str = Form(""),
     waga: float = Form(...),
     data_produkcji: str = Form(...),
+    edit_password: str = Form(""),
     user=Depends(require_auth),
     conn=Depends(get_db),
 ):
-    """Edycja danych farby — tylko kierownik i admin."""
-    if user["role"] not in ("manager", "admin"):
+    """Edycja danych farby — kierownik/admin bez hasła; operator_mieszalni z hasłem."""
+    allowed = ("manager", "admin", "operator_mieszalni")
+    if user["role"] not in allowed:
         return RedirectResponse("/magazyn?error=brak_dostepu", status_code=303)
     cur = conn.cursor()
+    if user["role"] == "operator_mieszalni":
+        correct = get_edit_password(cur)
+        if edit_password != correct:
+            return RedirectResponse("/magazyn?error=bledne_haslo", status_code=303)
     cur.execute("SELECT * FROM farby WHERE id=?", (farba_id,))
     f = cur.fetchone()
     if not f:
