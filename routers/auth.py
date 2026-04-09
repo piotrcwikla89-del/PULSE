@@ -60,8 +60,11 @@ def logout(request: Request):
 
 @router.get("/dashboard")
 def dashboard(request: Request, user=Depends(require_auth)):
-    if user["role"] == "drukarz" and not request.session.get("machine"):
-        return RedirectResponse("/select-machine", status_code=303)
+    if user["role"] == "drukarz":
+        machine = request.session.get("machine")
+        if not machine:
+            return RedirectResponse("/select-machine", status_code=303)
+        return RedirectResponse(f"/maszyna/{machine.lower()}/plany", status_code=303)
     return render_template("dashboard.html", {
         "user": {"username": user["username"], "role": user["role"]}
     })

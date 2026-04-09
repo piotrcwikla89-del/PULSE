@@ -53,7 +53,7 @@
     <div class="row g-4 justify-content-center">
 
         <!-- Maszyny -->
-        {% if user.role not in ['operator_mieszalni', 'prepress'] %}
+        {% if user.role in ['admin', 'manager', 'drukarz'] %}
         <div class="col-md-6 col-lg-3">
             <div class="card dashboard-card machine-card h-100" onclick="window.location.href='/maszyny'">
                 <div class="card-body text-center">
@@ -69,7 +69,7 @@
         {% endif %}
 
         <!-- Panel Kierownika -->
-        {% if user.role not in ['operator_mieszalni', 'prepress'] %}
+        {% if user.role in ['admin', 'manager'] %}
         <div class="col-md-6 col-lg-3">
             <div class="card dashboard-card manager-card h-100" onclick="window.location.href='/kierownik'">
                 <div class="card-body text-center">
@@ -84,7 +84,8 @@
         </div>
         {% endif %}
 
-        <!-- Magazyn Farb (jeden kafelek dla wszystkich ról z dostępem do dashboardu) -->
+        <!-- Magazyn Farb -->
+        {% if user.role in ['admin', 'manager', 'operator_mieszalni'] %}
         <div class="col-md-6 col-lg-3">
             <div class="card dashboard-card warehouse-card h-100" onclick="window.location.href='/magazyn'">
                 <div class="card-body text-center">
@@ -97,8 +98,10 @@
                 </div>
             </div>
         </div>
+        {% endif %}
 
         <!-- Magazyn Polimerów -->
+        {% if user.role in ['admin', 'manager', 'prepress'] %}
         <div class="col-md-6 col-lg-3">
             <div class="card dashboard-card polymer-card h-100" onclick="window.location.href='/polimery'">
                 <div class="card-body text-center">
@@ -111,8 +114,10 @@
                 </div>
             </div>
         </div>
+        {% endif %}
 
         <!-- Plany Produkcyjne -->
+        {% if user.role in ['admin', 'manager', 'operator_mieszalni', 'prepress'] %}
         <div class="col-md-6 col-lg-3">
             <div class="card dashboard-card machine-card h-100" onclick="window.location.href='/plany'">
                 <div class="card-body text-center">
@@ -125,8 +130,10 @@
                 </div>
             </div>
         </div>
+        {% endif %}
 
         <!-- Powiadomienia -->
+        {% if user.role in ['admin', 'manager', 'operator_mieszalni', 'prepress'] %}
         <div class="col-md-6 col-lg-3">
             <div class="card dashboard-card admin-card h-100" onclick="window.location.href='/notifications'">
                 <div class="card-body text-center">
@@ -139,6 +146,7 @@
                 </div>
             </div>
         </div>
+        {% endif %}
 
         {% if user.role == 'admin' %}
         <!-- Panel Administratora -->

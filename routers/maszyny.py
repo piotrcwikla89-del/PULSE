@@ -46,15 +46,17 @@ def plany(request: Request, user=Depends(require_auth), conn=Depends(get_db)):
         cur.execute(
             """
             SELECT COUNT(*) AS c,
-                   SUM(CASE WHEN COALESCE(assortment_prep_status,'')='ready' THEN 1 ELSE 0 END) AS r
+                   SUM(CASE WHEN COALESCE(farby_prep_status,'')='ready' THEN 1 ELSE 0 END) AS fr,
+                   SUM(CASE WHEN COALESCE(polimery_prep_status,'')='ready' THEN 1 ELSE 0 END) AS pr
             FROM production_plans WHERE machine=? AND status='planned'
             """,
             (m,),
         )
         row = cur.fetchone()
         tot = row["c"] or 0
-        rdy = min(row["r"] or 0, tot)
-        machine_prep[m] = {"total": tot, "ready": rdy}
+        fr = min(row["fr"] or 0, tot)
+        pr = min(row["pr"] or 0, tot)
+        machine_prep[m] = {"total": tot, "farby_ready": fr, "polimery_ready": pr}
     return render_template("plany_machines.html", {
         "machines": machines,
         "machine_prep": machine_prep,
@@ -131,20 +133,32 @@ def potwierdz_asortyment(
     plan = cur.fetchone()
     if not plan or plan["status"] != "planned":
         return RedirectResponse(f"/maszyna/{machine.lower()}/plany?error=brak_zlecenia", status_code=303)
-    cur.execute(
-        "UPDATE production_plans SET assortment_prep_status='ready' WHERE id=? AND machine=?",
-        (plan_id, machine.upper()),
-    )
-    desc = f"Asortyment zatwierdzony dla {plan['order_number']} ({machine.upper()}) przez {user['username']}"
+
+    if user["role"] == "operator_mieszalni":
+        cur.execute(
+            "UPDATE production_plans SET farby_prep_status='ready' WHERE id=? AND machine=?",
+            (plan_id, machine.upper()),
+        )
+        success_key = "asortyment_farby"
+        desc = f"Farby zatwierdzone dla {plan['order_number']} ({machine.upper()}) przez {user['username']}"
+        notif_msg = f"Zatwierdzono przygotowanie farb dla {plan['order_number']} na {machine.upper()}"
+    else:  # prepress
+        cur.execute(
+            "UPDATE production_plans SET polimery_prep_status='ready' WHERE id=? AND machine=?",
+            (plan_id, machine.upper()),
+        )
+        success_key = "asortyment_polimery"
+        desc = f"Matryce zatwierdzone dla {plan['order_number']} ({machine.upper()}) przez {user['username']}"
+        notif_msg = f"Zatwierdzono przygotowanie matryc dla {plan['order_number']} na {machine.upper()}"
+
     log_production_operation(cur, "asortyment_zatwierdzony", desc, machine.upper(), plan_id, user["username"])
     log_domain_event(cur, "ASSORTMENT_CONFIRMED", user["username"], machine.upper(), plan_id, plan["lub_number"], None)
     insert_notification_if_enabled(
         cur, "ASSORTMENT_CONFIRMED", machine.upper(), plan_id,
-        f"Zatwierdzono asortyment (farby/matryce) dla {plan['order_number']} na {machine.upper()}",
-        "manager", user["username"],
+        notif_msg, "manager", user["username"],
     )
     conn.commit()
-    return RedirectResponse(f"/maszyna/{machine.lower()}/plany?success=asortyment", status_code=303)
+    return RedirectResponse(f"/maszyna/{machine.lower()}/plany?success={success_key}", status_code=303)
 
 
 @router.post("/kierownik/przenies-zlecenie")
@@ -170,7 +184,7 @@ def kierownik_przenies_zlecenie(
     if plan["status"] != "planned":
         return RedirectResponse(f"/maszyna/{src.lower()}/plany?error=tylko_planowane", status_code=303)
     cur.execute(
-        "UPDATE production_plans SET machine=?, assortment_prep_status='pending' WHERE id=?",
+        "UPDATE production_plans SET machine=?, assortment_prep_status='pending', farby_prep_status='pending', polimery_prep_status='pending' WHERE id=?",
         (tgt, plan_id),
     )
     log_domain_event(cur, "PLAN_MOVED", user["username"], tgt, plan_id, plan["lub_number"], f"z {src} na {tgt}")

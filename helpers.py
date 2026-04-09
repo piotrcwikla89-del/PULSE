@@ -254,5 +254,9 @@ def enrich_plans_with_lub_materials(cur, plan_rows):
         st = d.get("assortment_prep_status")
         if not st:
             d["assortment_prep_status"] = "pending"
+        if not d.get("farby_prep_status"):
+            d["farby_prep_status"] = "pending"
+        if not d.get("polimery_prep_status"):
+            d["polimery_prep_status"] = "pending"
         out.append(d)
     return out

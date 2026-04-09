@@ -27,17 +27,27 @@
                     <h5 class="card-title">Maszyna {{ m }}</h5>
                     <p class="card-text mb-2">Przegląd planów dziennych dla {{ m }}</p>
                     {% if user.role in ['operator_mieszalni', 'prepress', 'manager', 'admin'] %}
-                    <p class="small text-muted mb-2">
-                        Asortyment:
-                        <span class="text-success">{{ mp.ready }} got.</span>
-                        /
-                        <span class="text-warning">{{ mp.total - mp.ready }} ocz.</span>
-                        <span class="text-muted">({{ mp.total }} zleceń)</span>
-                    </p>
-                    <div class="d-flex justify-content-center gap-1 flex-wrap mb-2" style="min-height:1.25rem;">
-                        {% for i in range(mp.total) %}
-                        <span class="rounded-circle {% if loop.index0 < mp.ready %}bg-success{% else %}bg-warning{% endif %} d-inline-block" style="width:10px;height:10px;" title="{% if loop.index0 < mp.ready %}Zatwierdzone{% else %}Oczekuje{% endif %}"></span>
-                        {% endfor %}
+                    <div class="small text-muted mb-2">
+                        <div class="d-flex align-items-center gap-1 mb-1">
+                            <i class="fas fa-flask" style="width:14px;color:#6c757d;"></i>
+                            <span>Mieszalnia:</span>
+                            <span class="text-success fw-bold">{{ mp.farby_ready }}</span><span>/{{ mp.total }}</span>
+                            <div class="d-flex gap-1 flex-wrap ms-1">
+                                {% for i in range(mp.total) %}
+                                <span class="rounded-circle {% if loop.index0 < mp.farby_ready %}bg-success{% else %}bg-warning{% endif %} d-inline-block" style="width:8px;height:8px;"></span>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <div class="d-flex align-items-center gap-1">
+                            <i class="fas fa-images" style="width:14px;color:#6c757d;"></i>
+                            <span>Prepress:</span>
+                            <span class="text-success fw-bold">{{ mp.polimery_ready }}</span><span>/{{ mp.total }}</span>
+                            <div class="d-flex gap-1 flex-wrap ms-1">
+                                {% for i in range(mp.total) %}
+                                <span class="rounded-circle {% if loop.index0 < mp.polimery_ready %}bg-success{% else %}bg-warning{% endif %} d-inline-block" style="width:8px;height:8px;"></span>
+                                {% endfor %}
+                            </div>
+                        </div>
                     </div>
                     {% endif %}
                     <span class="badge bg-primary">Przejdź</span>

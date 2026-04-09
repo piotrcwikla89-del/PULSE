@@ -128,7 +128,7 @@ def migrate_schema_postgres(cur) -> None:
         "operacje": [("farba_id", "INTEGER")],
         "production_reports": [("plan_id", "INTEGER")],
         "print_control_reports": [("plan_id", "INTEGER")],
-        "production_plans": [("assortment_prep_status", "TEXT")],
+        "production_plans": [("assortment_prep_status", "TEXT"), ("farby_prep_status", "TEXT"), ("polimery_prep_status", "TEXT")],
     }
     for table, columns in migrations.items():
         cur.execute(
@@ -208,6 +208,8 @@ def init_postgres_schema(cur) -> None:
             planned_date DATE,
             status TEXT DEFAULT 'planned',
             assortment_prep_status TEXT DEFAULT 'pending',
+            farby_prep_status TEXT DEFAULT 'pending',
+            polimery_prep_status TEXT DEFAULT 'pending',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """,

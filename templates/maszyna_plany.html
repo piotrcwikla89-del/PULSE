@@ -15,9 +15,21 @@
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Zamknij"></button>
     </div>
     {% endif %}
+    {% if success_msg == 'asortyment_farby' %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        Zatwierdzono przygotowanie farb (Mieszalnia) dla tego zlecenia.
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Zamknij"></button>
+    </div>
+    {% endif %}
+    {% if success_msg == 'asortyment_polimery' %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        Zatwierdzono przygotowanie matryc/polimerów (Prepress) dla tego zlecenia.
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Zamknij"></button>
+    </div>
+    {% endif %}
     {% if success_msg == 'asortyment' %}
     <div class="alert alert-success alert-dismissible fade show" role="alert">
-        Zatwierdzono przygotowanie asortymentu (farby i matryce) dla tego zlecenia.
+        Zatwierdzono przygotowanie asortymentu dla tego zlecenia.
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Zamknij"></button>
     </div>
     {% endif %}
@@ -42,8 +54,17 @@
 
     {% if show_prep_column %}
     <p class="text-muted small mb-3">
-        <span class="d-inline-block rounded-circle bg-success align-middle me-1" style="width:12px;height:12px;"></span> Asortyment zatwierdzony (farby/matryce)
-        <span class="d-inline-block rounded-circle bg-warning align-middle ms-3 me-1" style="width:12px;height:12px;"></span> Oczekuje na zatwierdzenie przez mieszalnię / prepress
+        <svg width="14" height="14" viewBox="0 0 14 14" style="display:inline-block;vertical-align:middle;" class="me-1">
+          <path d="M7,0 A7,7 0 0,0 7,14 Z" fill="#198754"/>
+          <path d="M7,0 A7,7 0 0,1 7,14 Z" fill="#198754"/>
+          <circle cx="7" cy="7" r="6.5" fill="none" stroke="#aaa" stroke-width="1"/>
+        </svg> Oba zatwierdzone
+        <svg width="14" height="14" viewBox="0 0 14 14" style="display:inline-block;vertical-align:middle;" class="ms-3 me-1">
+          <path d="M7,0 A7,7 0 0,0 7,14 Z" fill="#198754"/>
+          <path d="M7,0 A7,7 0 0,1 7,14 Z" fill="#ffc107"/>
+          <circle cx="7" cy="7" r="6.5" fill="none" stroke="#aaa" stroke-width="1"/>
+          <line x1="7" y1="0" x2="7" y2="14" stroke="#aaa" stroke-width="1"/>
+        </svg> Lewa = Mieszalnia (farby) / Prawa = Prepress (matryce). Żółty = oczekuje, zielony = zatwierdzony.
     </p>
     {% endif %}
     {% if prep_ui %}
@@ -85,11 +106,12 @@
                         <tr>
                             {% if show_prep_column %}
                             <td class="text-center">
-                                {% if p.assortment_prep_status == 'ready' %}
-                                <span class="d-inline-block rounded-circle bg-success" style="width:14px;height:14px;" title="Asortyment zatwierdzony"></span>
-                                {% else %}
-                                <span class="d-inline-block rounded-circle bg-warning" style="width:14px;height:14px;" title="Oczekuje na przygotowanie"></span>
-                                {% endif %}
+                                <svg width="16" height="16" viewBox="0 0 16 16" style="display:inline-block;vertical-align:middle;" title="Mieszalnia: {{ 'OK' if p.farby_prep_status == 'ready' else 'oczekuje' }} | Prepress: {{ 'OK' if p.polimery_prep_status == 'ready' else 'oczekuje' }}">
+                                  <path d="M8,0 A8,8 0 0,0 8,16 Z" fill="{{ '#198754' if p.farby_prep_status == 'ready' else '#ffc107' }}"/>
+                                  <path d="M8,0 A8,8 0 0,1 8,16 Z" fill="{{ '#198754' if p.polimery_prep_status == 'ready' else '#ffc107' }}"/>
+                                  <circle cx="8" cy="8" r="7.5" fill="none" stroke="#888" stroke-width="1"/>
+                                  <line x1="8" y1="0" x2="8" y2="16" stroke="#888" stroke-width="0.5"/>
+                                </svg>
                             </td>
                             {% endif %}
                             <td><strong>{{ p.order_number }}</strong></td>
@@ -184,15 +206,44 @@
                                             {% endif %}
                                         </div>
                                     </div>
-                                    <div class="mt-3 border-top pt-3">
-                                        {% if p.assortment_prep_status == 'ready' %}
-                                        <span class="badge bg-success fs-6"><i class="fas fa-check"></i> Asortyment zatwierdzony</span>
+                                    <div class="mt-3 border-top pt-3 d-flex flex-wrap align-items-center gap-3">
+                                        {% if user.role == 'operator_mieszalni' %}
+                                            {% if p.farby_prep_status == 'ready' %}
+                                            <span class="badge bg-success fs-6"><i class="fas fa-check"></i> Farby zatwierdzone</span>
+                                            {% else %}
+                                            <form method="post" action="/maszyna/{{ machine|lower }}/plan/{{ p.id }}/potwierdz-asortyment" class="d-inline">
+                                                <button type="submit" class="btn btn-success btn-sm" onclick="return confirm('Potwierdzasz, że farby dla tego zlecenia zostały przygotowane i są gotowe?');">
+                                                    <i class="fas fa-flask"></i> Zatwierdź przygotowanie farb (Mieszalnia)
+                                                </button>
+                                            </form>
+                                            {% endif %}
+                                            {% if p.polimery_prep_status == 'ready' %}
+                                            <span class="badge bg-success"><i class="fas fa-check"></i> Matryce zatwierdzone (Prepress)</span>
+                                            {% else %}
+                                            <span class="badge bg-warning text-dark"><i class="fas fa-clock"></i> Matryce — oczekuje na Prepress</span>
+                                            {% endif %}
+                                        {% elif user.role == 'prepress' %}
+                                            {% if p.polimery_prep_status == 'ready' %}
+                                            <span class="badge bg-success fs-6"><i class="fas fa-check"></i> Matryce/polimery zatwierdzone</span>
+                                            {% else %}
+                                            <form method="post" action="/maszyna/{{ machine|lower }}/plan/{{ p.id }}/potwierdz-asortyment" class="d-inline">
+                                                <button type="submit" class="btn btn-success btn-sm" onclick="return confirm('Potwierdzasz, że matryce/polimery dla tego zlecenia zostały przygotowane i są gotowe?');">
+                                                    <i class="fas fa-images"></i> Zatwierdź przygotowanie matryc (Prepress)
+                                                </button>
+                                            </form>
+                                            {% endif %}
+                                            {% if p.farby_prep_status == 'ready' %}
+                                            <span class="badge bg-success"><i class="fas fa-check"></i> Farby zatwierdzone (Mieszalnia)</span>
+                                            {% else %}
+                                            <span class="badge bg-warning text-dark"><i class="fas fa-clock"></i> Farby — oczekuje na Mieszalnię</span>
+                                            {% endif %}
                                         {% else %}
-                                        <form method="post" action="/maszyna/{{ machine|lower }}/plan/{{ p.id }}/potwierdz-asortyment" class="d-inline">
-                                            <button type="submit" class="btn btn-success btn-sm" onclick="return confirm('Potwierdzasz, że asortyment dla tego zlecenia został zweryfikowany i jest gotowy do produkcji?');">
-                                                <i class="fas fa-check-circle"></i> Zatwierdź przygotowanie asortymentu
-                                            </button>
-                                        </form>
+                                            <span class="badge {% if p.farby_prep_status == 'ready' %}bg-success{% else %}bg-warning text-dark{% endif %}">
+                                                <i class="fas fa-flask"></i> Mieszalnia: {% if p.farby_prep_status == 'ready' %}OK{% else %}oczekuje{% endif %}
+                                            </span>
+                                            <span class="badge {% if p.polimery_prep_status == 'ready' %}bg-success{% else %}bg-warning text-dark{% endif %}">
+                                                <i class="fas fa-images"></i> Prepress: {% if p.polimery_prep_status == 'ready' %}OK{% else %}oczekuje{% endif %}
+                                            </span>
                                         {% endif %}
                                     </div>
                                     {% endif %}
