@@ -84,11 +84,16 @@ class _PgCursor:
         else:
             self._raw.execute(sql, params)
         # Po INSERT z SERIAL/IDENTITY — jak sqlite3.Cursor.lastrowid
+        # Wywołujemy LASTVAL() tylko gdy coś faktycznie zostało wstawione.
+        # Dla tabel bez sekwencji (np. TEXT PRIMARY KEY) LASTVAL() rzuca ObjectNotInPrerequisiteState.
         if sql.lstrip().upper().startswith("INSERT") and (self._raw.rowcount or 0) > 0:
-            self._raw.execute("SELECT LASTVAL()")
-            row = self._raw.fetchone()
-            if row is not None:
-                self.lastrowid = int(row[0])
+            try:
+                self._raw.execute("SELECT LASTVAL()")
+                row = self._raw.fetchone()
+                if row is not None:
+                    self.lastrowid = int(row[0])
+            except Exception:
+                pass  # tabela bez sekwencji (np. TEXT PRIMARY KEY) — lastrowid pozostaje None
         return self
 
     def __getattr__(self, name: str):
