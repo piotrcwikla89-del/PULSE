@@ -67,7 +67,7 @@ def add_user(
     admin=Depends(require_admin),
     conn=Depends(get_db),
 ):
-    if role not in ["drukarz", "operator_mieszalni", "prepress", "manager", "admin"]:
+    if role not in ["drukarz", "operator_przewijarki", "operator_mieszalni", "prepress", "manager", "admin"]:
         return RedirectResponse("/admin?error=Nieprawid%C5%82owa+rola", status_code=303)
     if not password or not confirm_password or password != confirm_password:
         return RedirectResponse("/admin?error=Has%C5%82a+niezgodne+lub+puste", status_code=303)
