@@ -15,6 +15,7 @@ from helpers import (
     build_redirect_url,
     dodaj_operacje,
     filtruj_farby,
+    log_production_operation,
     render_template,
 )
 
@@ -32,6 +33,10 @@ def magazyn(
     dir: str = Query("asc"),
     error: str = Query(""),
     success: str = Query(""),
+    assign_lub: str = Query(""),
+    plan_id: int = Query(0),
+    assign_machine: str = Query(""),
+    return_to: str = Query(""),
     user=Depends(require_auth),
     conn=Depends(get_db),
 ):
@@ -50,6 +55,14 @@ def magazyn(
     else:
         farby.sort(key=lambda x: (x.get(sort) or ""), reverse=reverse)
 
+    # Pobierz dane zlecenia jeśli jesteśmy w trybie przypisywania
+    assign_plan = None
+    if assign_lub and plan_id:
+        cur.execute("SELECT order_number, order_name FROM production_plans WHERE id=?", (plan_id,))
+        row = cur.fetchone()
+        if row:
+            assign_plan = dict(row)
+
     return render_template("magazyn.html", {
         "farby": farby,
         "licznik_przeterminowane": licznik_przeterminowane,
@@ -64,7 +77,49 @@ def magazyn(
         "user": {"username": user["username"], "role": user["role"]},
         "error": error,
         "success": success,
+        "assign_lub": assign_lub,
+        "plan_id": plan_id,
+        "assign_machine": assign_machine,
+        "return_to": return_to,
+        "assign_plan": assign_plan,
     })
+
+
+@router.post("/farba/{farba_id}/przypisz-lub")
+def farba_przypisz_lub(
+    farba_id: int,
+    request: Request,
+    assign_lub: str = Form(...),
+    plan_id: int = Form(0),
+    assign_machine: str = Form(""),
+    return_to: str = Form(""),
+    user=Depends(require_auth),
+    conn=Depends(get_db),
+):
+    """Ręczne przypisanie farby do numeru LUB i zlecenia."""
+    # Walidacja return_to przed open-redirect
+    safe_return = return_to if return_to.startswith("/maszyna/") or return_to.startswith("/plany") else ""
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM farby WHERE id=?", (farba_id,))
+    f = cur.fetchone()
+    if not f:
+        redirect = safe_return or "/magazyn"
+        return RedirectResponse(f"{redirect}?error=notfound", status_code=303)
+    cur.execute("UPDATE farby SET lub=? WHERE id=?", (assign_lub, farba_id))
+    dodaj_operacje(
+        cur, "przypisanie_lub", f["pantone"], str(f["waga"]), f["polka"],
+        f"Przypisano do LUB {assign_lub} (zlecenie ID {plan_id}) przez {user['username']}",
+        f["id"],
+    )
+    log_production_operation(
+        cur, "przypisanie_farby_do_lub",
+        f"Farba {f['pantone']} (ID {farba_id}) przypisana do LUB {assign_lub} przez {user['username']}",
+        assign_machine or None, plan_id or None, user["username"],
+    )
+    conn.commit()
+    redirect = safe_return or "/magazyn"
+    sep = "&" if "?" in redirect else "?"
+    return RedirectResponse(f"{redirect}{sep}success=przypisano_farbe", status_code=303)
 
 
 @router.post("/dodaj_farba")

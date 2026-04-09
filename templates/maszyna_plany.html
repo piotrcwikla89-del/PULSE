@@ -9,6 +9,18 @@
 </head>
 <body class="bg-light">
 <div class="container mt-4">
+    {% if success_msg == 'przypisano_farbe' %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="fas fa-link"></i> Farba została ręcznie przypisana do wybranego LUB.
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Zamknij"></button>
+    </div>
+    {% endif %}
+    {% if success_msg == 'przypisano_polimer' %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="fas fa-link"></i> Polimer/matryca została ręcznie przypisana do wybranego LUB.
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Zamknij"></button>
+    </div>
+    {% endif %}
     {% if success_msg == 'przeniesiono' %}
     <div class="alert alert-success alert-dismissible fade show" role="alert">
         Zlecenie zostało przeniesione na wybraną maszynę.
@@ -180,6 +192,14 @@
                                             {% else %}
                                             <p class="text-muted small mb-0">Brak rekordów farb dla tego LUB w magazynie.</p>
                                             {% endif %}
+                                            {% if user.role in ['operator_mieszalni', 'manager', 'admin'] %}
+                                            <div class="mt-2">
+                                                <a href="/magazyn?assign_lub={{ p.lub_number }}&plan_id={{ p.id }}&assign_machine={{ machine }}&return_to=/maszyna/{{ machine|lower }}/plany"
+                                                   class="btn btn-sm btn-outline-warning">
+                                                    <i class="fas fa-link"></i> Przypisz ręcznie farbę do LUB {{ p.lub_number }}
+                                                </a>
+                                            </div>
+                                            {% endif %}
                                         </div>
                                         <div class="col-md-6">
                                             <h6 class="small text-uppercase text-muted">Matryce (polimery)</h6>
@@ -203,6 +223,14 @@
                                             </div>
                                             {% else %}
                                             <p class="text-muted small mb-0">Brak matryc dla tego LUB w magazynie.</p>
+                                            {% endif %}
+                                            {% if user.role in ['prepress', 'manager', 'admin'] %}
+                                            <div class="mt-2">
+                                                <a href="/polimery?assign_lub={{ p.lub_number }}&plan_id={{ p.id }}&assign_machine={{ machine }}&return_to=/maszyna/{{ machine|lower }}/plany"
+                                                   class="btn btn-sm btn-outline-warning">
+                                                    <i class="fas fa-link"></i> Przypisz ręcznie matryce do LUB {{ p.lub_number }}
+                                                </a>
+                                            </div>
                                             {% endif %}
                                         </div>
                                     </div>

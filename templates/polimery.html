@@ -53,6 +53,22 @@
         </div>
     </div>
 
+    {% if assign_lub %}
+    <div class="alert alert-warning border-warning border-2 shadow-sm d-flex align-items-center gap-3 mb-4" role="alert">
+        <i class="fas fa-link fa-2x text-warning"></i>
+        <div>
+            <strong>Tryb ręcznego przypisania do LUB</strong><br>
+            Przypisujesz matryce/polimery do LUB: <strong>{{ assign_lub }}</strong>
+            {% if assign_plan %} — zlecenie <strong>{{ assign_plan.order_number }}</strong>{% if assign_plan.order_name %} ({{ assign_plan.order_name }}){% endif %}{% endif %}
+            {% if assign_machine %} na maszynie <strong>{{ assign_machine }}</strong>{% endif %}.
+            <br><small class="text-muted">Kliknij <em>Przypisz do LUB</em> przy wybranym polimerze. Zostanie powiązany z tym numerem LUB na stałe.</small>
+        </div>
+        {% if return_to %}
+        <a href="{{ return_to }}" class="btn btn-outline-secondary btn-sm ms-auto text-nowrap"><i class="fas fa-arrow-left"></i> Wróć do planu</a>
+        {% endif %}
+    </div>
+    {% endif %}
+
     <div class="mb-3">
         <a href="/dashboard" class="btn btn-outline-primary"><i class="fas fa-home"></i> Dashboard</a>
         <a href="/magazyn" class="btn btn-outline-primary"><i class="fas fa-paint-brush"></i> Magazyn farb</a>
@@ -159,6 +175,17 @@
                     </td>
                     <td>{{ p.artwork_number }}</td>
                     <td class="actions-cell">
+                        {% if assign_lub and p.status != 'zutylizowana' %}
+                        <form method="post" action="/polimer/{{ p.id }}/przypisz-lub" class="d-inline mb-1">
+                            <input type="hidden" name="assign_lub" value="{{ assign_lub }}">
+                            <input type="hidden" name="plan_id" value="{{ plan_id }}">
+                            <input type="hidden" name="assign_machine" value="{{ assign_machine }}">
+                            <input type="hidden" name="return_to" value="{{ return_to }}">
+                            <button class="btn btn-sm btn-warning fw-semibold" onclick="return confirm('Przypisać polimer {{ p.kolor }} do LUB {{ assign_lub }}?')">
+                                <i class="fas fa-link"></i> Przypisz do LUB
+                            </button>
+                        </form>
+                        {% endif %}
                         {% if p.status == 'dostepna' %}
                             <form method="post" action="/pobierz_polimer" class="d-inline">
                                 <input type="hidden" name="id" value="{{ p.id }}">

@@ -7,7 +7,7 @@ from starlette.requests import Request
 
 from db_compat import INTEGRITY_ERRORS
 from dependencies import get_db, is_ajax, require_auth
-from helpers import render_template
+from helpers import log_production_operation, render_template
 
 router = APIRouter()
 
@@ -22,6 +22,10 @@ def polimery(
     dir: str = Query("asc"),
     error: str = Query(""),
     success: str = Query(""),
+    assign_lub: str = Query(""),
+    plan_id: int = Query(0),
+    assign_machine: str = Query(""),
+    return_to: str = Query(""),
     user=Depends(require_auth),
     conn=Depends(get_db),
 ):
@@ -49,6 +53,14 @@ def polimery(
     else:
         polimery_list.sort(key=lambda x: (x.get(sort) or ""), reverse=reverse)
 
+    # Pobierz dane zlecenia jeśli jesteśmy w trybie przypisywania
+    assign_plan = None
+    if assign_lub and plan_id:
+        cur.execute("SELECT order_number, order_name FROM production_plans WHERE id=?", (plan_id,))
+        row = cur.fetchone()
+        if row:
+            assign_plan = dict(row)
+
     return render_template("polimery.html", {
         "polimery": polimery_list,
         "search_field": search_field,
@@ -59,6 +71,11 @@ def polimery(
         "user": {"username": user["username"], "role": user["role"]},
         "error": error,
         "success": success,
+        "assign_lub": assign_lub,
+        "plan_id": plan_id,
+        "assign_machine": assign_machine,
+        "return_to": return_to,
+        "assign_plan": assign_plan,
     })
 
 
@@ -259,3 +276,40 @@ def get_polimer_row(
     if not p:
         return HTMLResponse("<td colspan='7'>Błąd: polimer nie istnieje</td>", status_code=404)
     return render_template("polimery_row.html", {"p": dict(p)})
+
+
+@router.post("/polimer/{polimer_id}/przypisz-lub")
+def polimer_przypisz_lub(
+    polimer_id: int,
+    request: Request,
+    assign_lub: str = Form(...),
+    plan_id: int = Form(0),
+    assign_machine: str = Form(""),
+    return_to: str = Form(""),
+    user=Depends(require_auth),
+    conn=Depends(get_db),
+):
+    """Ręczne przypisanie polimeru do numeru LUB i zlecenia."""
+    # Walidacja return_to przed open-redirect
+    safe_return = return_to if return_to.startswith("/maszyna/") or return_to.startswith("/plany") else ""
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM polymers WHERE id=?", (polimer_id,))
+    p = cur.fetchone()
+    if not p:
+        redirect = safe_return or "/polimery"
+        return RedirectResponse(f"{redirect}?error=notfound", status_code=303)
+    cur.execute("UPDATE polymers SET lub=? WHERE id=?", (assign_lub, polimer_id))
+    cur.execute(
+        "INSERT INTO polymer_operations (typ, polymer_id, lokalizacja, uwagi) VALUES ('przypisanie_lub', ?, ?, ?)",
+        (polimer_id, p["lokalizacja"],
+         f"Przypisano do LUB {assign_lub} (zlecenie ID {plan_id}) przez {user['username']}"),
+    )
+    log_production_operation(
+        cur, "przypisanie_polimeru_do_lub",
+        f"Polimer {p['kolor']} (ID {polimer_id}) przypisany do LUB {assign_lub} przez {user['username']}",
+        assign_machine or None, plan_id or None, user["username"],
+    )
+    conn.commit()
+    redirect = safe_return or "/polimery"
+    sep = "&" if "?" in redirect else "?"
+    return RedirectResponse(f"{redirect}{sep}success=przypisano_polimer", status_code=303)
