@@ -6,50 +6,299 @@
     <title>Zlecenie {{ plan.order_number }} - {{ machine }} - System Drukarni</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/app-modern.css">
 </head>
 <body class="bg-light">
-<div class="container mt-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1><i class="fas fa-tools"></i> Zlecenie {{ plan.order_number }} ({{ machine }})</h1>
+<div class="container mt-4 mb-5">
+    <div class="page-toolbar">
         <div>
+            <h1 class="mb-1"><i class="fas fa-layer-group"></i> Zlecenie {{ plan.order_number }}</h1>
+            <p class="mb-0">Maszyna {{ machine }} · widok operacyjny zlecenia</p>
+        </div>
+        <div class="toolbar-actions">
             <a href="/maszyna/{{ machine|lower }}/plany" class="btn btn-outline-primary btn-sm"><i class="fas fa-arrow-left"></i> Plany dzienne</a>
             <a href="/dashboard" class="btn btn-outline-secondary btn-sm"><i class="fas fa-home"></i> Dashboard</a>
         </div>
     </div>
+
     {% if status and message %}
-    <div class="alert alert-{{ 'success' if status == 'success' else 'info' if status == 'info' else 'warning' }}" role="alert">
+    <div class="alert alert-{{ 'success' if status == 'success' else 'info' if status == 'info' else 'warning' }} mb-4" role="alert">
         {{ message | replace('+', ' ') }}
     </div>
     {% endif %}
 
-    {% if user.role == 'drukarz' %}
-    <div class="card shadow-sm mb-3">
-        <div class="card-body py-2 px-3">
-            <h6 class="mb-2 text-muted small text-uppercase">Status przygotowania asortymentu</h6>
-            <div class="d-flex flex-wrap gap-4">
-                <div class="d-flex align-items-center gap-2">
-                    <svg width="18" height="18" viewBox="0 0 18 18" style="flex-shrink:0;">
-                      <circle cx="9" cy="9" r="9" fill="{{ '#198754' if plan.farby_prep_status == 'ready' else '#ffc107' }}"/>
-                    </svg>
-                    <div>
-                        <div class="small fw-bold"><i class="fas fa-flask me-1"></i>Mieszalnia (farby)</div>
-                        {% if plan.farby_prep_status == 'ready' %}
-                        <span class="badge bg-success">Zatwierdzone</span>
-                        {% else %}
-                        <span class="badge bg-warning text-dark">Oczekuje</span>
-                        {% endif %}
+    <section class="hero-panel mb-4">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-4">
+            <div>
+                <div class="d-flex flex-wrap gap-2 mb-3">
+                    <span class="status-pill">{% if plan.status == 'planned' %}Przygotowanie{% elif plan.status == 'in_progress' %}Aktywne zlecenie{% else %}Zakończone{% endif %}</span>
+                    <span class="status-pill">LUB {{ plan.lub_number or 'brak' }}</span>
+                </div>
+                <h2 class="mb-2">{{ plan.order_name or 'Bez nazwy zlecenia' }}</h2>
+                <p class="mb-0">Artwork {{ plan.artwork_number or '—' }} · Laminat {{ plan.laminate or '—' }}</p>
+            </div>
+            <div class="text-end">
+                <div class="small text-uppercase fw-semibold opacity-75 mb-1">Planowana produkcja</div>
+                <div class="fs-4 fw-bold">{{ plan.meters or 0 }} m</div>
+                <div>{{ plan.pieces or 0 }} szt.</div>
+            </div>
+        </div>
+
+        <div class="summary-grid">
+            <div class="summary-card">
+                <small>Numer zlecenia</small>
+                <strong>{{ plan.order_number }}</strong>
+            </div>
+            <div class="summary-card">
+                <small>Status farb</small>
+                <strong>{% if plan.farby_prep_status == 'ready' %}Przygotowane{% else %}Oczekuje{% endif %}</strong>
+            </div>
+            <div class="summary-card">
+                <small>Status polimerów</small>
+                <strong>{% if plan.polimery_prep_status == 'ready' %}Przygotowane{% else %}Oczekuje{% endif %}</strong>
+            </div>
+            <div class="summary-card">
+                <small>Data planu</small>
+                <strong>{{ plan.planned_date or '—' }}</strong>
+            </div>
+        </div>
+    </section>
+
+    <div class="row g-4 mb-4">
+        <div class="col-lg-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0">Przepływ zlecenia</h5>
+                </div>
+                <div class="card-body">
+                    <div class="workflow-rail">
+                        <div class="workflow-step {% if plan.status in ['in_progress', 'completed'] %}done{% else %}active{% endif %}">
+                            <span class="step-index">1</span>
+                            <div>
+                                <strong>Przygotowanie</strong>
+                                <div class="small">Farby i polimery muszą być gotowe przed startem.</div>
+                            </div>
+                        </div>
+                        <div class="workflow-step {% if plan.status == 'in_progress' %}active{% elif plan.status == 'completed' %}done{% else %}pending{% endif %}">
+                            <span class="step-index">2</span>
+                            <div>
+                                <strong>Realizacja</strong>
+                                <div class="small">Bieżąca kontrola zadruku, wezwania i obsługa problemów.</div>
+                            </div>
+                        </div>
+                        <div class="workflow-step {% if plan.status == 'completed' %}done{% else %}pending{% endif %}">
+                            <span class="step-index">3</span>
+                            <div>
+                                <strong>Finalizacja</strong>
+                                <div class="small">Zakończenie zlecenia następuje przez raport produkcji.</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
-                <div class="d-flex align-items-center gap-2">
-                    <svg width="18" height="18" viewBox="0 0 18 18" style="flex-shrink:0;">
-                      <circle cx="9" cy="9" r="9" fill="{{ '#198754' if plan.polimery_prep_status == 'ready' else '#ffc107' }}"/>
-                    </svg>
-                    <div>
-                        <div class="small fw-bold"><i class="fas fa-images me-1"></i>Prepress (matryce)</div>
-                        {% if plan.polimery_prep_status == 'ready' %}
-                        <span class="badge bg-success">Zatwierdzone</span>
+            </div>
+        </div>
+        <div class="col-lg-8">
+            <div class="metric-grid h-100">
+                <div class="metric-card">
+                    <small>Mieszalnia</small>
+                    <div class="metric-value">{% if plan.farby_prep_status == 'ready' %}OK{% else %}Czeka{% endif %}</div>
+                    <div class="small">Farby {% if plan.farby_prep_status == 'ready' %}zatwierdzone{% else %}niegotowe{% endif %}</div>
+                </div>
+                <div class="metric-card">
+                    <small>Prepress</small>
+                    <div class="metric-value">{% if plan.polimery_prep_status == 'ready' %}OK{% else %}Czeka{% endif %}</div>
+                    <div class="small">Polimery {% if plan.polimery_prep_status == 'ready' %}zatwierdzone{% else %}niegotowe{% endif %}</div>
+                </div>
+                <div class="metric-card">
+                    <small>Kontrola zadruku</small>
+                    <div class="metric-value">{{ print_reports|length }}</div>
+                    <div class="small">Wpisów z bieżącego zlecenia</div>
+                </div>
+                <div class="metric-card">
+                    <small>Raport końcowy</small>
+                    <div class="metric-value">{% if production_report %}Tak{% else %}Nie{% endif %}</div>
+                    <div class="small">Raport produkcji dla tego zlecenia</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if user.role == 'drukarz' %}
+    {% if not active_job and not completed_job %}
+    <div class="row g-4 mb-4">
+        <div class="col-lg-8">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0">Panel przygotowania startu</h5>
+                </div>
+                <div class="card-body">
+                    <p class="mb-4">Przed startem operator ma dostęp do działań pomocniczych, ale raporty i finalizacja pozostają zablokowane do czasu rozpoczęcia zlecenia.</p>
+                    <div class="action-grid">
+                        <a href="/maszyna/{{ machine|lower }}/job/{{ plan.id }}/problem" class="action-card warning-tone">
+                            <strong><i class="fas fa-exclamation-triangle me-2"></i>Zgłoś problem</strong>
+                            <small>Powiadom kierownika o przeszkodzie przed startem.</small>
+                        </a>
+                        <a href="/maszyna/{{ machine|lower }}/job/{{ plan.id }}/call-manager" class="action-card primary-tone">
+                            <strong><i class="fas fa-user-tie me-2"></i>Wezwij kierownika</strong>
+                            <small>Skonsultuj decyzję lub blokadę produkcyjną.</small>
+                        </a>
+                        <a href="/maszyna/{{ machine|lower }}/job/{{ plan.id }}/call-mieszalnia" class="action-card {% if plan.farby_prep_status == 'ready' %}disabled{% else %}danger-tone{% endif %}">
+                            <strong><i class="fas fa-flask me-2"></i>Wezwij mieszalnię</strong>
+                            <small>{% if plan.farby_prep_status == 'ready' %}Farby są już gotowe.{% else %}Przyspiesz przygotowanie farb do startu.{% endif %}</small>
+                        </a>
+                        <a href="/maszyna/{{ machine|lower }}/job/{{ plan.id }}/call-prepress" class="action-card {% if plan.polimery_prep_status == 'ready' %}disabled{% else %}danger-tone{% endif %}">
+                            <strong><i class="fas fa-images me-2"></i>Wezwij prepress</strong>
+                            <small>{% if plan.polimery_prep_status == 'ready' %}Polimery są już gotowe.{% else %}Przyspiesz przygotowanie polimerów do startu.{% endif %}</small>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0">Start zlecenia</h5>
+                </div>
+                <div class="card-body d-flex flex-column justify-content-between">
+                    {% if prep_ready %}
+                    <div class="surface-note mb-3">
+                        <strong>Asortyment gotowy</strong>
+                        <div class="small">Możesz bezpiecznie rozpocząć pracę na zleceniu.</div>
+                    </div>
+                    <a href="/maszyna/{{ machine|lower }}/job/{{ plan.id }}/start" class="btn btn-primary w-100">
+                        <i class="fas fa-play"></i> Rozpocznij zlecenie
+                    </a>
+                    {% else %}
+                    <div class="surface-note mb-3">
+                        <strong>Brak pełnego przygotowania</strong>
+                        <div class="small">Farby lub polimery nie są jeszcze zatwierdzone. System poprosi o potwierdzenie rozpoczęcia mimo tego stanu.</div>
+                    </div>
+                    <button type="button" class="btn btn-warning w-100" data-bs-toggle="modal" data-bs-target="#startConfirmModal">
+                        <i class="fas fa-triangle-exclamation"></i> Rozpocznij mimo braków
+                    </button>
+                    {% endif %}
+                    <div class="mt-3 small">Raport jakości i raport produkcji pojawią się dopiero po rozpoczęciu zlecenia.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% elif active_job %}
+    <div class="row g-4 mb-4">
+        <div class="col-lg-8">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0">Aktywne zlecenie</h5>
+                </div>
+                <div class="card-body">
+                    <div class="action-grid mb-4">
+                        <button type="button" class="action-card success-tone border-0 text-start open-report-modal" data-report-type="print_control">
+                            <strong><i class="fas fa-clipboard-check me-2"></i>Dodaj raport kontroli zadruku</strong>
+                            <small>Uzupełniaj kontrolę na bieżąco, rolka po rolce.</small>
+                        </button>
+                        <button type="button" class="action-card primary-tone border-0 text-start open-report-modal" data-report-type="production">
+                            <strong><i class="fas fa-flag-checkered me-2"></i>Zakończ i wypełnij raport produkcji</strong>
+                            <small>Finalizacja zlecenia następuje dopiero po wysłaniu raportu końcowego.</small>
+                        </button>
+                        <a href="/maszyna/{{ machine|lower }}/job/{{ plan.id }}/problem" class="action-card warning-tone">
+                            <strong><i class="fas fa-exclamation-triangle me-2"></i>Zgłoś problem</strong>
+                            <small>Zarejestruj przeszkodę na aktywnym zleceniu.</small>
+                        </a>
+                        <a href="/maszyna/{{ machine|lower }}/job/{{ plan.id }}/call-manager" class="action-card danger-tone">
+                            <strong><i class="fas fa-user-tie me-2"></i>Wezwij kierownika</strong>
+                            <small>Natychmiastowy kontakt dla decyzji produkcyjnej.</small>
+                        </a>
+                        <a href="/maszyna/{{ machine|lower }}/job/{{ plan.id }}/call-mieszalnia" class="action-card primary-tone">
+                            <strong><i class="fas fa-flask me-2"></i>Wezwij mieszalnię</strong>
+                            <small>Wsparcie farb podczas trwającej produkcji.</small>
+                        </a>
+                        <a href="/maszyna/{{ machine|lower }}/job/{{ plan.id }}/call-prepress" class="action-card primary-tone">
+                            <strong><i class="fas fa-images me-2"></i>Wezwij prepress</strong>
+                            <small>Wsparcie polimerów i ustawień form.</small>
+                        </a>
+                    </div>
+
+                    <div class="card timeline-card border-0 shadow-none">
+                        <div class="card-header bg-white">
+                            <h6 class="mb-0">Historia kontroli zadruku</h6>
+                        </div>
+                        <div class="card-body">
+                            {% if print_reports %}
+                            <div class="timeline-list">
+                                {% for report in print_reports %}
+                                <div class="timeline-item">
+                                    <span class="dot"></span>
+                                    <div>
+                                        <strong>{{ report.created_at|localdatetime }} · {{ report.status }}</strong>
+                                        <div class="small">{{ report.notes or 'Brak uwag' }}</div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <div class="surface-note">Brak wpisów kontroli zadruku. Pierwszy raport jakości pojawi się po dodaniu wpisu z aktywnego zlecenia.</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Dokumenty robocze</h5>
+                </div>
+                <div class="card-body">
+                    <div class="doc-grid">
+                        <div class="doc-card placeholder">
+                            <div class="doc-icon"><i class="fas fa-file-pdf"></i></div>
+                            <strong>PDF wzoru</strong>
+                            <div class="small">Placeholder pod przyszły import pliku wzorcowego dla zlecenia.</div>
+                        </div>
+                        <div class="doc-card placeholder">
+                            <div class="doc-icon"><i class="fas fa-file-lines"></i></div>
+                            <strong>Specyfikacja</strong>
+                            <div class="small">Miejsce pod techniczną specyfikację z admina lub prepressu.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0">Stan pracy</h5>
+                </div>
+                <div class="card-body">
+                    <div class="surface-note mb-3">
+                        <strong>Zlecenie w toku</strong>
+                        <div class="small">Raport końcowy produkcji zamknie zlecenie i zapisze wynik do rejestru raportów.</div>
+                    </div>
+                    <div class="surface-note">
+                        <strong>Asortyment startowy</strong>
+                        <div class="small">Farby: {{ 'gotowe' if plan.farby_prep_status == 'ready' else 'niegotowe' }} · Polimery: {{ 'gotowe' if plan.polimery_prep_status == 'ready' else 'niegotowe' }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Podsumowanie zakończonego zlecenia</h5>
+        </div>
+        <div class="card-body">
+            <div class="row g-4">
+                <div class="col-lg-6">
+                    <div class="surface-note h-100">
+                        <strong>Kontrola zadruku</strong>
+                        <div class="small mt-2">Liczba wpisów: {{ print_reports|length }}</div>
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <div class="surface-note h-100">
+                        <strong>Raport końcowy produkcji</strong>
+                        {% if production_report %}
+                        <div class="small mt-2">{{ production_report.created_at|localdatetime }} · Ilość {{ production_report.quantity }} · OK {{ production_report.ok_quantity }} · NOK {{ production_report.nok_quantity }}</div>
                         {% else %}
-                        <span class="badge bg-warning text-dark">Oczekuje</span>
+                        <div class="small mt-2">Brak raportu końcowego w bazie.</div>
                         {% endif %}
                     </div>
                 </div>
@@ -57,19 +306,7 @@
         </div>
     </div>
     {% endif %}
-
-    <div class="card shadow-sm mb-4">
-        <div class="card-body">
-            <h5>Opis zlecenia</h5>
-            <p><strong>Order:</strong> {{ plan.order_number }}</p>
-            <p><strong>Artwork:</strong> {{ plan.artwork_number }}</p>
-            <p><strong>LUB:</strong> {{ plan.lub_number }}</p>
-            <p><strong>Nazwa:</strong> {{ plan.order_name }}</p>
-            <p><strong>Laminat:</strong> {{ plan.laminate }}</p>
-            <p><strong>Metry:</strong> {{ plan.meters }}  <strong>Sztuki:</strong> {{ plan.pieces }}</p>
-            <p><strong>Status zlecenia:</strong> {{ plan.status }}</p>
-        </div>
-    </div>
+    {% endif %}
 
     {% if user.role in ['operator_mieszalni', 'prepress'] %}
     <div class="card shadow-sm mb-4">
@@ -144,54 +381,8 @@
         </div>
     </div>
     {% endif %}
-
-    <div class="row g-3">
-        <div class="col-md-4">
-            <button type="button" class="btn btn-info w-100 open-report-modal" data-report-type="print_control">
-                <i class="fas fa-clipboard-check"></i> Raport kontroli zadruku
-            </button>
-        </div>
-        <div class="col-md-4">
-            <button type="button" class="btn btn-success w-100 open-report-modal" data-report-type="production">
-                <i class="fas fa-chart-bar"></i> Raport produkcji
-            </button>
-        </div>
-        <div class="col-md-4">
-            <a href="/maszyna/{{ machine|lower }}/job/{{ plan.id }}/problem" class="btn btn-warning w-100">
-                <i class="fas fa-exclamation-triangle"></i> Zgłoś problem
-            </a>
-        </div>
-        <div class="col-md-4">
-            <a href="/maszyna/{{ machine|lower }}/job/{{ plan.id }}/call-manager" class="btn btn-primary w-100">
-                <i class="fas fa-user-tie"></i> Wezwij Kierownika
-            </a>
-        </div>
-        {% if user.role == 'drukarz' %}
-        <div class="col-md-4">
-            <a href="/maszyna/{{ machine|lower }}/job/{{ plan.id }}/call-mieszalnia" class="btn btn-dark w-100">
-                <i class="fas fa-blender"></i> Wezwij Operatora Mieszalni
-            </a>
-        </div>
-        <div class="col-md-4">
-            <a href="/maszyna/{{ machine|lower }}/job/{{ plan.id }}/call-prepress" class="btn btn-secondary w-100">
-                <i class="fas fa-images"></i> Wezwij Prepress
-            </a>
-        </div>
-        <div class="col-md-4">
-            <a href="/maszyna/{{ machine|lower }}/job/{{ plan.id }}/start" class="btn btn-primary w-100 mt-3">
-                <i class="fas fa-play"></i> Rozpocznij zlecenie
-            </a>
-        </div>
-        <div class="col-md-4">
-            <a href="/maszyna/{{ machine|lower }}/job/{{ plan.id }}/complete" class="btn btn-success w-100 mt-3">
-                <i class="fas fa-check"></i> Zakończ zlecenie
-            </a>
-        </div>
-        {% endif %}
-    </div>
 </div>
 
-<!-- Modal raportu -->
 <div class="modal fade" id="reportModal" tabindex="-1" aria-labelledby="reportModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered">
     <div class="modal-content">
@@ -201,7 +392,7 @@
       </div>
       <form id="reportForm" method="post" action="/maszyna/{{ machine|lower }}/job/{{ plan.id }}/submit-report">
         <div class="modal-body">
-          <input type="hidden" name="report_type" id="reportType" value="" />
+          <input type="hidden" name="report_type" id="reportType" value="">
           <div class="mb-3">
             <label class="form-label">Numer zlecenia</label>
             <input type="text" class="form-control" name="job_number" value="{{ plan.order_number }}" readonly>
@@ -211,28 +402,35 @@
             <input type="text" class="form-control" id="reportTypeLabel" value="" readonly>
           </div>
           <div class="mb-3">
-            <label class="form-label">Data</label>
+            <label class="form-label">Data i godzina</label>
             <input type="datetime-local" class="form-control" name="report_date" value="" required>
           </div>
           <div class="mb-3">
-            <label class="form-label">Shift</label>
+            <label class="form-label">Zmiana</label>
             <select class="form-select" name="shift">
               <option value="dzien">Dzień</option>
               <option value="noc">Noc</option>
             </select>
           </div>
+          <div class="mb-3" id="statusField">
+            <label class="form-label">Status kontroli</label>
+            <select class="form-select" name="status" id="statusSelect">
+              <option value="OK">OK</option>
+              <option value="NOT_OK">NOK</option>
+            </select>
+          </div>
           <div class="mb-3" id="productionFields" style="display:none;">
             <label class="form-label">Ilość (szt.)</label>
-            <input type="number" class="form-control" name="quantity" min="0" value="0" required>
+            <input type="number" class="form-control" name="quantity" min="0" value="0">
           </div>
           <div class="mb-3" id="productionQualityFields" style="display:none;">
-            <label class="form-label">Ok / Nieok</label>
+            <label class="form-label">OK / NOK</label>
             <div class="row">
               <div class="col">
-                <input type="number" class="form-control" name="ok_quantity" min="0" value="0" required placeholder="OK">
+                <input type="number" class="form-control" name="ok_quantity" min="0" value="0" placeholder="OK">
               </div>
               <div class="col">
-                <input type="number" class="form-control" name="nok_quantity" min="0" value="0" required placeholder="NOK">
+                <input type="number" class="form-control" name="nok_quantity" min="0" value="0" placeholder="NOK">
               </div>
             </div>
           </div>
@@ -245,19 +443,12 @@
                 <label class="form-check-label" for="problem-{{ category.code }}">{{ category.label }}</label>
               </div>
               {% endfor %}
-              <div class="form-text">Zaznacz tylko wtedy, gdy w zleceniu rzeczywiście wystąpił problem.</div>
+              <div class="form-text">Oznacz problem tylko wtedy, gdy wystąpił realnie podczas realizacji zlecenia.</div>
             </div>
           </div>
           <div class="mb-3" id="productionIssueNoteField" style="display:none;">
             <label class="form-label">Krótki opis problemu</label>
-            <input type="text" class="form-control" name="problem_short_note" maxlength="255" placeholder="Opcjonalnie: krótka informacja dla kolejnej roli lub kierownika">
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Status kontroli</label>
-            <select class="form-select" name="status">
-              <option value="OK">OK</option>
-              <option value="NOT_OK">NOK</option>
-            </select>
+            <input type="text" class="form-control" name="problem_short_note" maxlength="255" placeholder="Opcjonalna informacja dla kolejnej roli lub kierownika">
           </div>
           <div class="mb-3">
             <label class="form-label">Uwagi</label>
@@ -265,39 +456,73 @@
           </div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
-          <button type="submit" class="btn btn-primary">Wyślij raport</button>
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+          <button type="submit" class="btn btn-primary" id="reportSubmitButton">Wyślij raport</button>
         </div>
       </form>
     </div>
   </div>
 </div>
 
+<div class="modal fade" id="startConfirmModal" tabindex="-1" aria-labelledby="startConfirmModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="startConfirmModalLabel">Start bez pełnego przygotowania</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-2">Farby lub polimery nie mają jeszcze statusu gotowe.</p>
+        <p class="mb-0">Czy na pewno chcesz rozpocząć zlecenie mimo niepełnego przygotowania asortymentu?</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Nie</button>
+        <a href="/maszyna/{{ machine|lower }}/job/{{ plan.id }}/start?confirm=1" class="btn btn-warning">Tak, rozpocznij</a>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
-  document.querySelectorAll('.open-report-modal').forEach(btn => {
-    btn.addEventListener('click', function() {
-      const type = this.getAttribute('data-report-type');
-      const title = (type === 'print_control') ? 'Raport kontroli zadruku' : 'Raport produkcji';
-      document.getElementById('reportModalLabel').innerText = title;
-      document.getElementById('reportType').value = type;
-      document.getElementById('reportTypeLabel').value = title;
-      document.getElementById('productionFields').style.display = (type === 'production') ? 'block' : 'none';
-      document.getElementById('productionQualityFields').style.display = (type === 'production') ? 'block' : 'none';
-      document.getElementById('productionIssueFields').style.display = (type === 'production') ? 'block' : 'none';
-      document.getElementById('productionIssueNoteField').style.display = (type === 'production') ? 'block' : 'none';
-      if (type !== 'production') {
-        document.querySelectorAll('.production-issue-checkbox').forEach(function (checkbox) {
-          checkbox.checked = false;
-        });
-        document.querySelector('input[name="problem_short_note"]').value = '';
-      }
-      const d = new Date();
-      const localISO = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0,16);
-      document.querySelector('input[name="report_date"]').value = localISO;
-      const modal = new bootstrap.Modal(document.getElementById('reportModal'));
-      modal.show();
+  function openReportModal(type) {
+    const title = type === 'print_control' ? 'Raport kontroli zadruku' : 'Finalny raport produkcji';
+    document.getElementById('reportModalLabel').innerText = title;
+    document.getElementById('reportType').value = type;
+    document.getElementById('reportTypeLabel').value = title;
+    document.getElementById('productionFields').style.display = type === 'production' ? 'block' : 'none';
+    document.getElementById('productionQualityFields').style.display = type === 'production' ? 'block' : 'none';
+    document.getElementById('productionIssueFields').style.display = type === 'production' ? 'block' : 'none';
+    document.getElementById('productionIssueNoteField').style.display = type === 'production' ? 'block' : 'none';
+    document.getElementById('statusField').style.display = type === 'print_control' ? 'block' : 'none';
+    document.getElementById('reportSubmitButton').innerText = type === 'print_control' ? 'Zapisz kontrolę' : 'Zapisz raport i zakończ zlecenie';
+    document.getElementById('statusSelect').value = 'OK';
+    if (type !== 'production') {
+      document.querySelectorAll('.production-issue-checkbox').forEach(function (checkbox) {
+        checkbox.checked = false;
+      });
+      document.querySelector('input[name="problem_short_note"]').value = '';
+      document.querySelector('input[name="quantity"]').value = 0;
+      document.querySelector('input[name="ok_quantity"]').value = 0;
+      document.querySelector('input[name="nok_quantity"]').value = 0;
+    }
+    const now = new Date();
+    const localISO = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0,16);
+    document.querySelector('input[name="report_date"]').value = localISO;
+    const modal = new bootstrap.Modal(document.getElementById('reportModal'));
+    modal.show();
+  }
+
+  document.querySelectorAll('.open-report-modal').forEach(function (button) {
+    button.addEventListener('click', function () {
+      openReportModal(this.getAttribute('data-report-type'));
     });
   });
+
+  {% if auto_open_final_report %}
+  window.addEventListener('load', function () {
+    openReportModal('production');
+  });
+  {% endif %}
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 {% include '_notification_poll.html' %}

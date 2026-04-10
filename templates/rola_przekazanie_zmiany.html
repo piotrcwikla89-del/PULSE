@@ -6,6 +6,7 @@
     <title>Przekazanie zmiany</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/app-modern.css">
 </head>
 <body class="bg-light">
 <div class="container mt-4 mb-5">
@@ -19,9 +20,9 @@
 
     <div class="alert alert-secondary">
         {% if user.role == 'operator_mieszalni' %}
-        Widok pokazuje problemy skierowane do mieszalni oraz listę zleceń z przygotowanymi farbami.
+        Widok pokazuje problemy skierowane do mieszalni od razu po zapisaniu raportu produkcyjnego przez drukarza oraz listę zleceń z przygotowanymi farbami.
         {% else %}
-        Widok pokazuje problemy skierowane do prepressu oraz listę zleceń z przygotowanymi matrycami.
+        Widok pokazuje problemy skierowane do prepressu od razu po zapisaniu raportu produkcyjnego przez drukarza oraz listę zleceń z przygotowanymi matrycami.
         {% endif %}
     </div>
 
@@ -29,14 +30,123 @@
     <div class="alert alert-success">Status problemu został zaktualizowany.</div>
     {% endif %}
 
+    {% if success == 'draft' %}
+    <div class="alert alert-success">Szkic formularza został zapisany. Możesz uzupełniać go dalej w trakcie zmiany.</div>
+    {% endif %}
+
+    {% if success == 'sent' %}
+    <div class="alert alert-success">Przekazanie zmiany zostało wysłane do kolejnej zmiany tej samej roli.</div>
+    {% endif %}
+
+    {% if success == 'ack' %}
+    <div class="alert alert-success">Przekazanie zmiany zostało potwierdzone.</div>
+    {% endif %}
+
     {% if has_pending_handover %}
     <div class="alert alert-warning">Masz otwarte problemy z przekazania zmiany. Ten widok będzie otwierany po logowaniu, dopóki pozostają nierozwiązane pozycje.</div>
     {% endif %}
 
+    {% if pending_role_handover and pending_role_handover.status == 'waiting_ack' %}
+    <div class="card shadow-sm mb-4 border-warning">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <h5 class="mb-0">Odbiór przekazania poprzedniej zmiany</h5>
+            <span class="badge text-bg-warning">Oczekuje potwierdzenia</span>
+        </div>
+        <div class="card-body">
+            <div class="row g-3 mb-3">
+                <div class="col-md-3">
+                    <div class="small text-muted">Data</div>
+                    <div>{{ pending_role_handover.handover_date }}</div>
+                </div>
+                <div class="col-md-3">
+                    <div class="small text-muted">Zmiana przekazująca</div>
+                    <div>{{ pending_role_handover.outgoing_shift_name }}</div>
+                </div>
+                <div class="col-md-3">
+                    <div class="small text-muted">Zmiana przejmująca</div>
+                    <div>{{ pending_role_handover.incoming_shift_name }}</div>
+                </div>
+                <div class="col-md-3">
+                    <div class="small text-muted">Autor</div>
+                    <div>{{ pending_role_handover.created_by }}</div>
+                </div>
+            </div>
+            <div class="mb-3">
+                <div class="small text-muted">Komentarz przekazania</div>
+                <div class="p-3 rounded-3 bg-light border">{{ pending_role_handover.summary_comment or 'Brak komentarza przekazania.' }}</div>
+            </div>
+            <form method="post" action="/przekazanie-zmiany/odbior" class="row g-3 align-items-end">
+                <input type="hidden" name="handover_id" value="{{ pending_role_handover.id }}">
+                <input type="hidden" name="view" value="{{ view_mode }}">
+                <div class="col-md-9">
+                    <label class="form-label">Notatka odbioru</label>
+                    <input type="text" name="acknowledgement_note" class="form-control" placeholder="Opcjonalna notatka przy odbiorze przekazania">
+                </div>
+                <div class="col-md-3 d-grid">
+                    <button type="submit" class="btn btn-dark">Potwierdź odbiór</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <h5 class="mb-0">Twoje przekazanie zmiany</h5>
+            {% if existing_handover %}
+            <span class="badge {% if existing_handover.status == 'draft' %}text-bg-secondary{% elif existing_handover.status == 'waiting_ack' %}text-bg-warning{% else %}text-bg-success{% endif %}">
+                {% if existing_handover.status == 'draft' %}Szkic{% elif existing_handover.status == 'waiting_ack' %}Wysłane{% else %}Potwierdzone{% endif %}
+            </span>
+            {% endif %}
+        </div>
+        <div class="card-body">
+            <p class="text-muted small mb-3">
+                {% if user.role == 'operator_mieszalni' %}
+                Tu możesz na bieżąco dopisywać uwagi z przebiegu zmiany mieszalni, zapisywać szkic i wysłać całość na koniec zmiany.
+                {% else %}
+                Tu możesz na bieżąco dopisywać uwagi z przebiegu zmiany prepressu, zapisywać szkic i wysłać całość na koniec zmiany.
+                {% endif %}
+            </p>
+            <form method="post" action="/przekazanie-zmiany">
+                <input type="hidden" name="view" value="{{ view_mode }}">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Data zmiany</label>
+                        <input type="date" name="report_date" class="form-control" value="{{ date_q }}" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Zmiana przekazująca</label>
+                        <select name="shift" class="form-select">
+                            <option value="dzien" {% if shift == 'dzien' %}selected{% endif %}>Dzień</option>
+                            <option value="noc" {% if shift == 'noc' %}selected{% endif %}>Noc</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Zmiana przejmująca</label>
+                        <input type="text" class="form-control" value="{{ incoming_shift|capitalize }}" disabled>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Komentarz do przekazania</label>
+                        <textarea name="summary_comment" class="form-control" rows="6" placeholder="Wpisz najważniejsze informacje z przebiegu zmiany, otwarte tematy, ustalenia i ryzyka na kolejną zmianę.">{{ existing_handover.summary_comment if existing_handover else '' }}</textarea>
+                    </div>
+                </div>
+                <div class="d-flex flex-wrap gap-2 mt-3">
+                    <button type="submit" name="action" value="draft" class="btn btn-outline-dark">Zapisz szkic</button>
+                    <button type="submit" name="action" value="send" class="btn btn-dark">Wyślij przekazanie zmiany</button>
+                </div>
+            </form>
+            {% if existing_handover and existing_handover.acknowledged_at %}
+            <div class="small text-muted mt-3">
+                Potwierdzone przez {{ existing_handover.acknowledged_by or '—' }} w dniu {{ existing_handover.acknowledged_at }}.
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
     <div class="d-flex flex-wrap gap-2 mb-3">
-        <a href="/przekazanie-zmiany?view=open" class="btn btn-sm {% if view_mode == 'open' %}btn-dark{% else %}btn-outline-dark{% endif %}">Otwarte</a>
-        <a href="/przekazanie-zmiany?view=resolved" class="btn btn-sm {% if view_mode == 'resolved' %}btn-dark{% else %}btn-outline-dark{% endif %}">Rozwiązane</a>
-        <a href="/przekazanie-zmiany?view=all" class="btn btn-sm {% if view_mode == 'all' %}btn-dark{% else %}btn-outline-dark{% endif %}">Wszystkie</a>
+        <a href="/przekazanie-zmiany?view=open&date={{ date_q }}&shift={{ shift }}" class="btn btn-sm {% if view_mode == 'open' %}btn-dark{% else %}btn-outline-dark{% endif %}">Otwarte</a>
+        <a href="/przekazanie-zmiany?view=resolved&date={{ date_q }}&shift={{ shift }}" class="btn btn-sm {% if view_mode == 'resolved' %}btn-dark{% else %}btn-outline-dark{% endif %}">Rozwiązane</a>
+        <a href="/przekazanie-zmiany?view=all&date={{ date_q }}&shift={{ shift }}" class="btn btn-sm {% if view_mode == 'all' %}btn-dark{% else %}btn-outline-dark{% endif %}">Wszystkie</a>
     </div>
 
     <div class="card shadow-sm mb-4">
@@ -87,7 +197,13 @@
                                 </form>
                                 {% endif %}
                             </td>
-                            <td><small>{{ issue.summary_comment or '—' }}</small></td>
+                            <td>
+                                {% if issue.summary_comment %}
+                                <small>{{ issue.summary_comment }}</small>
+                                {% else %}
+                                <small class="text-muted">Jeszcze bez wysłanego przekazania zmiany</small>
+                                {% endif %}
+                            </td>
                         </tr>
                         {% endfor %}
                     </tbody>

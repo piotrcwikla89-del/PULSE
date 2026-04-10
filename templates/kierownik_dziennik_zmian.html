@@ -6,6 +6,7 @@
     <title>Dziennik Zmian Produkcyjnych - System Drukarni</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/app-modern.css">
     <style>
         body {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -62,7 +63,7 @@
                                 <br><small class="text-muted">Zlecenie: {{ op.order_number }}</small>
                                 {% endif %}
                                 {% if op.plan_id %}
-                                <a href="/maszyna/{{ op.machine|lower }}/job/{{ op.plan_id }}" class="btn btn-sm btn-outline-primary ms-2">
+                                <a href="{% if op.machine and op.machine.startswith('P') %}/przewijarka/{{ op.machine|lower }}/job/{{ op.plan_id }}{% else %}/maszyna/{{ op.machine|lower }}/job/{{ op.plan_id }}{% endif %}" class="btn btn-sm btn-outline-primary ms-2">
                                     <i class="fas fa-external-link-alt"></i> Zobacz szczegóły
                                 </a>
                                 {% endif %}

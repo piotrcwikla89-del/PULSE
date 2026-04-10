@@ -6,13 +6,20 @@
     <title>Plany - {{ machine }} - System Drukarni</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/app-modern.css">
 </head>
 <body class="bg-light">
-<div class="container mt-4">
+<div class="container mt-4 mb-5">
 
     {% if success_msg == 'przeniesiono' %}
     <div class="alert alert-success alert-dismissible fade show" role="alert">
         Zlecenie zostało przeniesione.
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endif %}
+    {% if success_msg == 'przejecie_zmiany' %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        Odbiór przekazania zmiany został potwierdzony.
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
     {% endif %}
@@ -25,9 +32,15 @@
     </div>
     {% endif %}
 
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1><i class="fas fa-wind"></i> Plany — Przewijarka {{ machine }}</h1>
+    <div class="page-toolbar">
         <div>
+            <h1 class="mb-1"><i class="fas fa-wind"></i> Przewijarka {{ machine }}</h1>
+            <p class="mb-0">Kolejka zleceń, przekazanie zmiany i raportowanie do kierownika.</p>
+        </div>
+        <div class="toolbar-actions">
+            <a href="/przewijarka/{{ machine|lower }}/przekazanie-zmiany" class="btn btn-dark btn-sm">
+                <i class="fas fa-people-arrows-left-right"></i> Przekazanie zmiany
+            </a>
             <a href="/select-przewijarka" class="btn btn-outline-primary btn-sm">
                 <i class="fas fa-exchange-alt"></i> Zmień przewijarkę
             </a>
@@ -36,6 +49,23 @@
             </a>
         </div>
     </div>
+
+    <section class="hero-panel mb-4">
+        <div class="summary-grid">
+            <div class="summary-card">
+                <small>Zaplanowane zlecenia</small>
+                <strong>{{ plans|length }}</strong>
+            </div>
+            <div class="summary-card">
+                <small>Panel roboczy</small>
+                <strong>Przewijanie + handover</strong>
+            </div>
+            <div class="summary-card">
+                <small>Raportowanie</small>
+                <strong>Bezpośrednio do kierownika</strong>
+            </div>
+        </div>
+    </section>
 
     <div class="card shadow-sm">
         <div class="card-header">
@@ -48,6 +78,7 @@
                     <thead class="table-light">
                         <tr>
                             <th>Nr Zlecenia</th>
+                            <th>LUB</th>
                             <th>Nr Artwork</th>
                             <th>Nazwa Zlecenia</th>
                             <th>Laminat</th>
@@ -61,6 +92,7 @@
                         {% for p in plans %}
                         <tr>
                             <td><strong>{{ p.order_number }}</strong></td>
+                            <td>{{ p.lub_number or '—' }}</td>
                             <td>{{ p.artwork_number }}</td>
                             <td>{{ p.order_name }}</td>
                             <td>{{ p.laminate }}</td>
@@ -87,9 +119,6 @@
         </div>
     </div>
 
-    <div class="text-center mt-4 text-muted small">
-        Zalogowany: <strong>{{ user.username }}</strong>
-    </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>

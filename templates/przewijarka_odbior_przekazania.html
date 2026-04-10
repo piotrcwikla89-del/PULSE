@@ -10,16 +10,19 @@
 </head>
 <body class="bg-light">
 <div class="container mt-4 mb-5">
-    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
-        <h1 class="h3"><i class="fas fa-inbox"></i> Odbiór przekazania zmiany - {{ machine }}</h1>
+    <div class="page-toolbar">
         <div>
-            <a href="/maszyna/{{ machine|lower }}/plany" class="btn btn-outline-primary btn-sm"><i class="fas fa-arrow-left"></i> Plany dzienne</a>
+            <h1 class="mb-1"><i class="fas fa-inbox"></i> Odbiór przekazania zmiany - {{ machine }}</h1>
+            <p class="mb-0">Potwierdź przejęcie przewijarki przed wejściem do planów.</p>
+        </div>
+        <div class="toolbar-actions">
+            <a href="/przewijarka/{{ machine|lower }}/plany" class="btn btn-outline-primary btn-sm"><i class="fas fa-arrow-left"></i> Plany</a>
             <a href="/logout" class="btn btn-outline-danger btn-sm"><i class="fas fa-sign-out-alt"></i> Wyloguj</a>
         </div>
     </div>
 
     <div class="alert alert-warning">
-        To przekazanie zostało zapisane przez poprzednią zmianę i wymaga potwierdzenia odbioru przed wejściem do planów maszyny.
+        To przekazanie zostało zapisane przez poprzednią zmianę i wymaga potwierdzenia odbioru przed wejściem do planów przewijarki.
     </div>
 
     {% if success %}
@@ -59,36 +62,14 @@
         </div>
     </div>
 
-    <div class="card shadow-sm mb-4">
-        <div class="card-header bg-white">
-            <h5 class="mb-0">Problemy przekazane dalej</h5>
-        </div>
-        <div class="card-body">
-            {% if issue_items %}
-            <ul class="list-group list-group-flush">
-                {% for item in issue_items %}
-                <li class="list-group-item px-0">
-                    <strong>{{ item.title }}</strong>
-                    {% if item.target_role %}<small class="text-muted"> → {{ item.target_role }}</small>{% endif %}
-                    {% if item.job_number %}<br><small>Zlecenie: {{ item.job_number }}</small>{% endif %}
-                    {% if item.details %}<br><small>{{ item.details }}</small>{% endif %}
-                </li>
-                {% endfor %}
-            </ul>
-            {% else %}
-            <p class="text-muted mb-0">Brak dodatkowych problemów w tym przekazaniu.</p>
-            {% endif %}
-        </div>
-    </div>
-
-    <form method="post" action="/maszyna/{{ machine|lower }}/przekazanie-zmiany/odbior" class="card shadow-sm">
+    <form method="post" action="/przewijarka/{{ machine|lower }}/przekazanie-zmiany/odbior" class="card shadow-sm">
         <div class="card-header bg-white">
             <h5 class="mb-0">Potwierdzenie przejęcia</h5>
         </div>
         <div class="card-body">
             <input type="hidden" name="handover_id" value="{{ handover.id }}">
             <label class="form-label">Notatka przejęcia</label>
-            <textarea class="form-control" name="acknowledgement_note" rows="4" placeholder="Opcjonalnie: priorytety na start, uwagi po odbiorze, ryzyka do obserwacji..."></textarea>
+            <textarea class="form-control" name="acknowledgement_note" rows="4" placeholder="Opcjonalnie: ustawienia na start, uwagi po odbiorze, rzeczy do sprawdzenia..."></textarea>
         </div>
         <div class="card-footer bg-white d-flex justify-content-end">
             <button type="submit" class="btn btn-dark"><i class="fas fa-check"></i> Potwierdź przejęcie zmiany</button>

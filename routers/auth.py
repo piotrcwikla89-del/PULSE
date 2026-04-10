@@ -8,7 +8,7 @@ from fastapi.responses import RedirectResponse
 from starlette.requests import Request
 
 from dependencies import get_current_user, require_auth, get_db
-from helpers import find_pending_machine_handover, get_base_path, has_pending_role_handover, render_template
+from helpers import find_pending_machine_handover, find_pending_role_shift_handover, get_base_path, has_pending_role_handover, render_template
 
 router = APIRouter()
 
@@ -27,9 +27,14 @@ def _resolve_post_login_redirect(request: Request, user, cur) -> str:
         machine = request.session.get("machine")
         if not machine:
             return "/select-przewijarka"
+        pending_handover = find_pending_machine_handover(cur, machine)
+        if pending_handover:
+            return f"/przewijarka/{machine.lower()}/przekazanie-zmiany/odbior?handover_id={pending_handover['id']}"
         return f"/przewijarka/{machine.lower()}/plany"
-    if role in ("operator_mieszalni", "prepress") and has_pending_role_handover(cur, role):
-        return "/przekazanie-zmiany"
+    if role in ("operator_mieszalni", "prepress"):
+        pending_role_handover = find_pending_role_shift_handover(cur, role)
+        if pending_role_handover or has_pending_role_handover(cur, role):
+            return "/przekazanie-zmiany"
     return "/dashboard"
 
 

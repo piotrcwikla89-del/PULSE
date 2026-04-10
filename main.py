@@ -167,6 +167,25 @@ def migrate_schema(cur):
             FOREIGN KEY (plan_id) REFERENCES production_plans(id)
         )
     """)
+    execute(cur, """
+        CREATE TABLE IF NOT EXISTS role_shift_handovers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            handover_date DATE NOT NULL,
+            role TEXT NOT NULL,
+            outgoing_shift_id INTEGER NOT NULL,
+            incoming_shift_id INTEGER NOT NULL,
+            created_by TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            summary_comment TEXT,
+            status TEXT NOT NULL DEFAULT 'waiting_ack',
+            acknowledged_by TEXT,
+            acknowledged_at TIMESTAMP,
+            acknowledgement_note TEXT,
+            UNIQUE(handover_date, role, outgoing_shift_id, incoming_shift_id),
+            FOREIGN KEY (outgoing_shift_id) REFERENCES shifts(id),
+            FOREIGN KEY (incoming_shift_id) REFERENCES shifts(id)
+        )
+    """)
 
 
 def init_db():

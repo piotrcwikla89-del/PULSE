@@ -289,6 +289,29 @@ def migrate_schema_postgres(cur) -> None:
                 FOREIGN KEY (plan_id) REFERENCES production_plans(id)
             )
         """)
+    cur.execute(
+        "SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='role_shift_handovers'"
+    )
+    if not cur.fetchone():
+        cur.execute("""
+            CREATE TABLE role_shift_handovers (
+                id SERIAL PRIMARY KEY,
+                handover_date DATE NOT NULL,
+                role TEXT NOT NULL,
+                outgoing_shift_id INTEGER NOT NULL,
+                incoming_shift_id INTEGER NOT NULL,
+                created_by TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                summary_comment TEXT,
+                status TEXT NOT NULL DEFAULT 'waiting_ack',
+                acknowledged_by TEXT,
+                acknowledged_at TIMESTAMP,
+                acknowledgement_note TEXT,
+                UNIQUE(handover_date, role, outgoing_shift_id, incoming_shift_id),
+                FOREIGN KEY (outgoing_shift_id) REFERENCES shifts(id),
+                FOREIGN KEY (incoming_shift_id) REFERENCES shifts(id)
+            )
+        """)
 
 
 def init_postgres_schema(cur) -> None:
@@ -303,6 +326,23 @@ def init_postgres_schema(cur) -> None:
             waga DOUBLE PRECISION NOT NULL,
             status TEXT NOT NULL DEFAULT 'dostepna',
             data_produkcji DATE NOT NULL
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS role_shift_handovers (
+            id SERIAL PRIMARY KEY,
+            handover_date DATE NOT NULL,
+            role TEXT NOT NULL,
+            outgoing_shift_id INTEGER NOT NULL,
+            incoming_shift_id INTEGER NOT NULL,
+            created_by TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            summary_comment TEXT,
+            status TEXT NOT NULL DEFAULT 'waiting_ack',
+            acknowledged_by TEXT,
+            acknowledged_at TIMESTAMP,
+            acknowledgement_note TEXT,
+            UNIQUE(handover_date, role, outgoing_shift_id, incoming_shift_id)
         )
         """,
         """

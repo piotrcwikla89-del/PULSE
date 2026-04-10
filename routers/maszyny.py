@@ -14,6 +14,7 @@ from helpers import (
     PRODUCTION_MACHINES,
     enrich_plans_with_lub_materials,
     find_pending_machine_handover,
+    find_pending_role_shift_handover,
     get_lub_farby,
     has_pending_role_handover,
     insert_notification_if_enabled,
@@ -21,6 +22,7 @@ from helpers import (
     log_production_operation,
     normalize_shift_label,
     render_template,
+    resolve_active_shift,
     resolve_plan_id_for_job,
 )
 from time_utils import local_date_str, local_day_bounds_utc, local_time_str, local_today
@@ -82,16 +84,29 @@ def _load_role_handover_data(cur, role: str, status_filter: str = "open") -> tup
 
     cur.execute(
         f"""
-        SELECT sh.id AS handover_id, sh.handover_date, sh.machine, sh.created_by, sh.created_at AS handover_created_at,
-               sh.summary_comment, sh.status AS handover_status, shi.title, shi.details, shi.job_number, shi.lub_number,
+        SELECT sh.id AS handover_id,
+               COALESCE(sh.handover_date, pr.date) AS handover_date,
+               COALESCE(sh.machine, pr.machine, pri.machine) AS machine,
+               COALESCE(sh.created_by, pri.reported_by) AS created_by,
+               sh.created_at AS handover_created_at,
+               sh.summary_comment,
+               sh.status AS handover_status,
+               ('Problem: ' || pc.label) AS title,
+               COALESCE(shi.details, pri.short_note, ('Zlecenie: ' || COALESCE(pr.job_number, 'n/d'))) AS details,
+               pr.job_number,
+               pp.lub_number,
                pri.id AS production_issue_id, pri.short_note, pri.status AS issue_status,
                pri.resolved_at, pri.resolved_by, pri.resolution_note
-        FROM shift_handover_items shi
-        JOIN shift_handovers sh ON sh.id = shi.handover_id
-        LEFT JOIN production_report_issues pri ON pri.id = shi.production_report_issue_id
-        WHERE shi.item_type='issue' AND shi.target_role=?
+        FROM production_report_issues pri
+        JOIN problem_categories pc ON pc.id = pri.problem_category_id
+        LEFT JOIN production_reports pr ON pr.id = pri.production_report_id
+        LEFT JOIN production_plans pp ON pp.id = pri.plan_id
+        LEFT JOIN shift_handover_items shi ON shi.production_report_issue_id = pri.id AND shi.item_type='issue'
+        LEFT JOIN shift_handovers sh ON sh.id = shi.handover_id
+        WHERE pc.target_role=?
+          AND COALESCE(pri.needs_handover, 1)=1
         {issue_where}
-        ORDER BY sh.handover_date DESC, sh.created_at DESC, shi.sort_order, shi.id
+        ORDER BY COALESCE(sh.handover_date, pr.date) DESC, pri.created_at DESC, pri.id DESC
         """,
         (role,),
     )
@@ -110,6 +125,42 @@ def _load_role_handover_data(cur, role: str, status_filter: str = "open") -> tup
     )
     prepared_items = [dict(row) for row in cur.fetchall()]
     return issues, prepared_items, prep_title
+
+
+def _load_role_shift_handover(cur, role: str, report_date: str, shift: str) -> tuple[dict | None, str]:
+    outgoing_shift_id, incoming_shift_id, shift_norm, incoming_shift = _resolve_shift_ids(cur, shift)
+    if not outgoing_shift_id or not incoming_shift_id:
+        return None, incoming_shift
+    cur.execute(
+        """
+        SELECT rsh.*, incoming.name AS incoming_shift_name, outgoing.name AS outgoing_shift_name
+        FROM role_shift_handovers rsh
+        JOIN shifts incoming ON incoming.id = rsh.incoming_shift_id
+        JOIN shifts outgoing ON outgoing.id = rsh.outgoing_shift_id
+        WHERE rsh.handover_date=? AND rsh.role=? AND rsh.outgoing_shift_id=? AND rsh.incoming_shift_id=?
+          AND rsh.status IN ('draft', 'waiting_ack', 'acknowledged')
+        ORDER BY rsh.id DESC LIMIT 1
+        """,
+        (report_date, role, outgoing_shift_id, incoming_shift_id),
+    )
+    row = cur.fetchone()
+    return (dict(row) if row else None), incoming_shift
+
+
+def _finalize_job_completion(cur, machine: str, plan_row, plan_id: int, username: str) -> None:
+    if not plan_row or plan_row["status"] == "completed":
+        return
+    cur.execute("UPDATE production_plans SET status='completed' WHERE id=?", (plan_id,))
+    log_domain_event(cur, "JOB_COMPLETED", username, machine.upper(), plan_id, plan_row["lub_number"])
+    insert_notification_if_enabled(
+        cur, "JOB_COMPLETED", machine.upper(), plan_id,
+        f"Ukończenie zlecenia na {machine.upper()} dla {plan_row['order_number']}", "manager", username,
+    )
+    log_production_operation(
+        cur, "zakonczenie_zlecenia",
+        f"Zlecenie zakonczone {plan_row['order_number']} na {machine.upper()}",
+        machine.upper(), plan_id, username,
+    )
 
 
 @router.get("/maszyny")
@@ -158,6 +209,8 @@ def role_przekazanie_zmiany(
     user=Depends(require_auth),
     success: str = Query(""),
     view: str = Query("open"),
+    report_date: str = Query("", alias="date"),
+    shift: str = Query(""),
     conn=Depends(get_db),
 ):
     if user["role"] not in ("operator_mieszalni", "prepress"):
@@ -165,6 +218,11 @@ def role_przekazanie_zmiany(
     cur = conn.cursor()
     view_mode = view if view in ("open", "resolved", "all") else "open"
     issues, prepared_items, prep_title = _load_role_handover_data(cur, user["role"], status_filter=view_mode)
+    active_shift, active_date = resolve_active_shift(cur)
+    date_q = report_date or active_date
+    shift_q = normalize_shift_label(shift or active_shift)
+    existing_handover, incoming_shift = _load_role_shift_handover(cur, user["role"], date_q, shift_q)
+    pending_role_handover = find_pending_role_shift_handover(cur, user["role"])
     return render_template("rola_przekazanie_zmiany.html", {
         "user": {"username": user["username"], "role": user["role"]},
         "issues": issues,
@@ -172,8 +230,147 @@ def role_przekazanie_zmiany(
         "prep_title": prep_title,
         "success": success,
         "view_mode": view_mode,
+        "date_q": date_q,
+        "shift": shift_q,
+        "incoming_shift": incoming_shift,
+        "existing_handover": existing_handover,
+        "pending_role_handover": pending_role_handover,
         "has_pending_handover": has_pending_role_handover(cur, user["role"]),
     })
+
+
+@router.post("/przekazanie-zmiany")
+def role_zapisz_przekazanie_zmiany(
+    request: Request,
+    report_date: str = Form(...),
+    shift: str = Form(...),
+    summary_comment: str = Form(""),
+    action: str = Form("send"),
+    view: str = Form("open"),
+    user=Depends(require_auth),
+    conn=Depends(get_db),
+):
+    if user["role"] not in ("operator_mieszalni", "prepress"):
+        return RedirectResponse("/dashboard", status_code=303)
+    cur = conn.cursor()
+    outgoing_shift_id, incoming_shift_id, shift_norm, _incoming_shift = _resolve_shift_ids(cur, shift)
+    next_view = view if view in ("open", "resolved", "all") else "open"
+    if not outgoing_shift_id or not incoming_shift_id:
+        return RedirectResponse(
+            f"/przekazanie-zmiany?date={report_date}&shift={shift}&view={next_view}",
+            status_code=303,
+        )
+
+    cur.execute(
+        """
+        SELECT id FROM role_shift_handovers
+        WHERE handover_date=? AND role=? AND outgoing_shift_id=? AND incoming_shift_id=?
+        ORDER BY id DESC LIMIT 1
+        """,
+        (report_date, user["role"], outgoing_shift_id, incoming_shift_id),
+    )
+    existing = cur.fetchone()
+    action_mode = action if action in ("draft", "send") else "send"
+    trimmed_comment = summary_comment.strip()
+
+    if action_mode == "draft":
+        if existing:
+            cur.execute(
+                "UPDATE role_shift_handovers SET created_by=?, summary_comment=?, status='draft' WHERE id=?",
+                (user["username"], trimmed_comment, existing["id"]),
+            )
+        else:
+            cur.execute(
+                """
+                INSERT INTO role_shift_handovers (handover_date, role, outgoing_shift_id, incoming_shift_id, created_by, summary_comment, status)
+                VALUES (?, ?, ?, ?, ?, ?, 'draft')
+                """,
+                (report_date, user["role"], outgoing_shift_id, incoming_shift_id, user["username"], trimmed_comment),
+            )
+        log_production_operation(
+            cur,
+            "szkic_przekazania_zmiany_roli",
+            f"Zapisano szkic przekazania zmiany dla roli {user['role']} ({shift_norm})",
+            None,
+            None,
+            user["username"],
+        )
+        conn.commit()
+        return RedirectResponse(
+            f"/przekazanie-zmiany?date={report_date}&shift={shift_norm}&view={next_view}&success=draft",
+            status_code=303,
+        )
+
+    if existing:
+        cur.execute(
+            "UPDATE role_shift_handovers SET created_by=?, summary_comment=?, status='waiting_ack', acknowledged_by=NULL, acknowledged_at=NULL, acknowledgement_note=NULL WHERE id=?",
+            (user["username"], trimmed_comment, existing["id"]),
+        )
+        handover_id = existing["id"]
+    else:
+        cur.execute(
+            """
+            INSERT INTO role_shift_handovers (handover_date, role, outgoing_shift_id, incoming_shift_id, created_by, summary_comment, status)
+            VALUES (?, ?, ?, ?, ?, ?, 'waiting_ack')
+            """,
+            (report_date, user["role"], outgoing_shift_id, incoming_shift_id, user["username"], trimmed_comment),
+        )
+        handover_id = cur.lastrowid
+
+    log_production_operation(
+        cur,
+        "przekazanie_zmiany_roli",
+        f"Wysłano przekazanie zmiany dla roli {user['role']} ({shift_norm})",
+        None,
+        None,
+        user["username"],
+    )
+    log_domain_event(cur, "ROLE_SHIFT_HANDOVER_CREATED", user["username"], None, None, None, f"{user['role']}:{handover_id}")
+    conn.commit()
+    return RedirectResponse(
+        f"/przekazanie-zmiany?date={report_date}&shift={shift_norm}&view={next_view}&success=sent",
+        status_code=303,
+    )
+
+
+@router.post("/przekazanie-zmiany/odbior")
+def role_potwierdz_odbior_przekazania(
+    request: Request,
+    handover_id: int = Form(...),
+    acknowledgement_note: str = Form(""),
+    view: str = Form("open"),
+    user=Depends(require_auth),
+    conn=Depends(get_db),
+):
+    if user["role"] not in ("operator_mieszalni", "prepress"):
+        return RedirectResponse("/dashboard", status_code=303)
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT * FROM role_shift_handovers
+        WHERE id=? AND role=?
+        """,
+        (handover_id, user["role"]),
+    )
+    handover = cur.fetchone()
+    next_view = view if view in ("open", "resolved", "all") else "open"
+    if not handover or handover["status"] != "waiting_ack":
+        return RedirectResponse(f"/przekazanie-zmiany?view={next_view}", status_code=303)
+    cur.execute(
+        "UPDATE role_shift_handovers SET status='acknowledged', acknowledged_by=?, acknowledged_at=CURRENT_TIMESTAMP, acknowledgement_note=? WHERE id=?",
+        (user["username"], acknowledgement_note.strip(), handover_id),
+    )
+    log_production_operation(
+        cur,
+        "odbior_przekazania_zmiany_roli",
+        f"Przejęto przekazanie zmiany dla roli {user['role']} #{handover_id}",
+        None,
+        None,
+        user["username"],
+    )
+    log_domain_event(cur, "ROLE_SHIFT_HANDOVER_ACKNOWLEDGED", user["username"], None, None, None, str(handover_id))
+    conn.commit()
+    return RedirectResponse(f"/przekazanie-zmiany?view={next_view}&success=ack", status_code=303)
 
 
 @router.post("/przekazanie-zmiany/problem/{issue_id}/status")
@@ -314,6 +511,7 @@ def maszyna_przekazanie_zmiany(
             """
             SELECT * FROM shift_handovers
             WHERE handover_date=? AND machine=? AND outgoing_shift_id=? AND incoming_shift_id=?
+              AND status IN ('draft', 'waiting_ack', 'acknowledged')
             ORDER BY id DESC LIMIT 1
             """,
             (date_q, machine.upper(), outgoing_shift_id, incoming_shift_id),
@@ -432,6 +630,7 @@ def maszyna_zapisz_przekazanie_zmiany(
     report_date: str = Form(...),
     shift: str = Form(...),
     summary_comment: str = Form(""),
+    action: str = Form("send"),
     user=Depends(require_auth),
     conn=Depends(get_db),
 ):
@@ -456,6 +655,38 @@ def maszyna_zapisz_przekazanie_zmiany(
         (report_date, machine.upper(), outgoing_shift_id, incoming_shift_id),
     )
     existing = cur.fetchone()
+    action_mode = action if action in ("draft", "send") else "send"
+
+    if action_mode == "draft":
+        if existing:
+            handover_id = existing["id"]
+            cur.execute(
+                "UPDATE shift_handovers SET created_by=?, summary_comment=?, status='draft' WHERE id=?",
+                (user["username"], summary_comment.strip(), handover_id),
+            )
+            cur.execute("DELETE FROM shift_handover_items WHERE handover_id=?", (handover_id,))
+        else:
+            cur.execute(
+                """
+                INSERT INTO shift_handovers (handover_date, machine, outgoing_shift_id, incoming_shift_id, created_by, summary_comment, status)
+                VALUES (?, ?, ?, ?, ?, ?, 'draft')
+                """,
+                (report_date, machine.upper(), outgoing_shift_id, incoming_shift_id, user["username"], summary_comment.strip()),
+            )
+        log_production_operation(
+            cur,
+            "szkic_przekazania_zmiany",
+            f"Zapisano szkic przekazania zmiany dla {machine.upper()} ({shift_norm})",
+            machine.upper(),
+            None,
+            user["username"],
+        )
+        conn.commit()
+        return RedirectResponse(
+            f"/maszyna/{machine.lower()}/przekazanie-zmiany?date={report_date}&shift={shift_norm}&success=draft",
+            status_code=303,
+        )
+
     if existing:
         handover_id = existing["id"]
         cur.execute(
@@ -508,7 +739,7 @@ def maszyna_zapisz_przekazanie_zmiany(
     log_domain_event(cur, "SHIFT_HANDOVER_CREATED", user["username"], machine.upper(), None, None, f"{report_date}:{shift_norm}")
     conn.commit()
     return RedirectResponse(
-        f"/maszyna/{machine.lower()}/przekazanie-zmiany?date={report_date}&shift={shift_norm}&success=1",
+        f"/maszyna/{machine.lower()}/przekazanie-zmiany?date={report_date}&shift={shift_norm}&success=sent",
         status_code=303,
     )
 
@@ -665,6 +896,7 @@ def maszyna_job(
     user=Depends(require_auth),
     status: str = Query(""),
     message: str = Query(""),
+    finalize: str = Query(""),
     conn=Depends(get_db),
 ):
     if user["role"] == "drukarz" and request.session.get("machine") != machine.upper():
@@ -687,12 +919,31 @@ def maszyna_job(
         "SELECT code, label FROM problem_categories WHERE is_active=1 ORDER BY sort_order, label"
     )
     problem_categories = cur.fetchall()
+    cur.execute(
+        "SELECT * FROM print_control_reports WHERE plan_id=? ORDER BY created_at DESC, id DESC LIMIT 12",
+        (plan_id,),
+    )
+    print_reports = [dict(row) for row in cur.fetchall()]
+    cur.execute(
+        "SELECT * FROM production_reports WHERE plan_id=? ORDER BY created_at DESC, id DESC LIMIT 1",
+        (plan_id,),
+    )
+    production_report = cur.fetchone()
+    prep_ready = plan["farby_prep_status"] == "ready" and plan["polimery_prep_status"] == "ready"
+    active_job = plan["status"] == "in_progress"
+    completed_job = plan["status"] == "completed"
     return render_template("maszyna_job.html", {
         "machine": machine.upper(),
         "plan": plan,
         "farby": farby,
         "polimery": polimery,
         "problem_categories": problem_categories,
+        "print_reports": print_reports,
+        "production_report": dict(production_report) if production_report else None,
+        "prep_ready": prep_ready,
+        "active_job": active_job,
+        "completed_job": completed_job,
+        "auto_open_final_report": finalize == "1" and active_job,
         "user": {"username": user["username"], "role": user["role"]},
         "status": status,
         "message": message,
@@ -850,6 +1101,16 @@ def maszyna_job_start(
     plan = cur.fetchone()
     if not plan:
         return HTMLResponse("Zlecenie nie znalezione", status_code=404)
+    if plan["status"] == "in_progress":
+        return RedirectResponse(f"/maszyna/{machine}/job/{plan_id}?status=info&message=Zlecenie+jest+już+w+trakcie+realizacji", status_code=303)
+    if plan["status"] == "completed":
+        return RedirectResponse(f"/maszyna/{machine}/job/{plan_id}?status=info&message=Zlecenie+zostało+już+zakończone", status_code=303)
+    prep_ready = plan["farby_prep_status"] == "ready" and plan["polimery_prep_status"] == "ready"
+    if not prep_ready and request.query_params.get("confirm") != "1":
+        return RedirectResponse(
+            f"/maszyna/{machine}/job/{plan_id}?status=warning&message=Brak+pełnego+przygotowania+asortymentu.+Potwierdź+rozpoczęcie+zlecenia",
+            status_code=303,
+        )
     cur.execute("UPDATE production_plans SET status='in_progress' WHERE id=?", (plan_id,))
     log_domain_event(cur, "JOB_STARTED", user["username"], machine.upper(), plan_id, plan["lub_number"])
     insert_notification_if_enabled(
@@ -862,7 +1123,7 @@ def maszyna_job_start(
         machine.upper(), plan_id, user["username"],
     )
     conn.commit()
-    return RedirectResponse(f"/maszyna/{machine}/job/{plan_id}?status=success&message=Zlecenie+rozpoczęte", status_code=303)
+    return RedirectResponse(f"/maszyna/{machine}/job/{plan_id}?status=success&message=Zlecenie+rozpoczęte.+Możesz+prowadzić+kontrolę+zadruku+i+pracę+na+aktywnym+widoku", status_code=303)
 
 
 @router.get("/maszyna/{machine}/job/{plan_id}/complete")
@@ -877,19 +1138,15 @@ def maszyna_job_complete(
     plan = cur.fetchone()
     if not plan:
         return HTMLResponse("Zlecenie nie znalezione", status_code=404)
-    cur.execute("UPDATE production_plans SET status='completed' WHERE id=?", (plan_id,))
-    log_domain_event(cur, "JOB_COMPLETED", user["username"], machine.upper(), plan_id, plan["lub_number"])
-    insert_notification_if_enabled(
-        cur, "JOB_COMPLETED", machine.upper(), plan_id,
-        f"Ukończenie zlecenia na {machine.upper()} dla {plan['order_number']}", "manager", user["username"],
+    if plan["status"] != "in_progress":
+        return RedirectResponse(
+            f"/maszyna/{machine}/job/{plan_id}?status=warning&message=Najpierw+rozpocznij+zlecenie,+aby+je+finalizować",
+            status_code=303,
+        )
+    return RedirectResponse(
+        f"/maszyna/{machine}/job/{plan_id}?finalize=1&status=info&message=Aby+zakończyć+zlecenie,+wypełnij+raport+produkcji",
+        status_code=303,
     )
-    log_production_operation(
-        cur, "zakonczenie_zlecenia",
-        f"Zlecenie zakonczone {plan['order_number']} na {machine.upper()}",
-        machine.upper(), plan_id, user["username"],
-    )
-    conn.commit()
-    return RedirectResponse(f"/maszyna/{machine}/job/{plan_id}?status=success&message=Zlecenie+zakończone", status_code=303)
 
 
 @router.post("/maszyna/{machine}/job/{plan_id}/submit-report")
@@ -916,11 +1173,18 @@ def submit_report(
     cur = conn.cursor()
     cur.execute("SELECT * FROM production_plans WHERE id=?", (plan_id,))
     plan_row = cur.fetchone()
+    if not plan_row:
+        return HTMLResponse("Zlecenie nie znalezione", status_code=404)
     lub = plan_row["lub_number"] if plan_row else None
     dpart = (report_date.split("T")[0] if "T" in report_date else report_date)[:10]
     tpart = report_date.split("T")[1][:8] if "T" in report_date else local_time_str()
     shift_norm = normalize_shift_label(shift)
     if report_type == "print_control":
+        if plan_row["status"] != "in_progress":
+            return RedirectResponse(
+                f"/maszyna/{machine.lower()}/job/{plan_id}?status=warning&message=Raport+kontroli+zadruku+jest+dostępny+dopiero+po+rozpoczęciu+zlecenia",
+                status_code=303,
+            )
         cur.execute(
             "INSERT INTO print_control_reports (machine, date, time, job_number, status, notes, created_by, plan_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             (machine.upper(), dpart, tpart, job_number, status, notes, user["username"], plan_id),
@@ -932,6 +1196,11 @@ def submit_report(
             f"Raport kontroli zadruku: {job_number} na {machine.upper()} — {status}", "manager", user["username"],
         )
     else:
+        if plan_row["status"] != "in_progress":
+            return RedirectResponse(
+                f"/maszyna/{machine.lower()}/job/{plan_id}?status=warning&message=Raport+produkcji+możesz+wypełnić+tylko+podczas+finalizacji+aktywnego+zlecenia",
+                status_code=303,
+            )
         cur.execute(
             "INSERT INTO production_reports (machine, date, shift, job_number, start_time, end_time, quantity, ok_quantity, nok_quantity, notes, created_by, plan_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (machine.upper(), dpart, shift_norm, job_number, tpart, tpart, quantity, ok_quantity, nok_quantity, notes, user["username"], plan_id),
@@ -972,6 +1241,7 @@ def submit_report(
             cur, "RAPORT_PRODUKCJI_ZAPISANY", machine.upper(), plan_id,
             f"Raport produkcji: {job_number} na {machine.upper()} — szt. {quantity}, OK {ok_quantity}, NOK {nok_quantity}", "manager", user["username"],
         )
+        _finalize_job_completion(cur, machine, plan_row, plan_id, user["username"])
     conn.commit()
     if user["role"] in ("manager", "admin"):
         return RedirectResponse(f"/kierownik/rejestr-raportow?date={dpart}", status_code=303)

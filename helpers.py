@@ -166,6 +166,7 @@ NOTIFICATION_EVENT_LABELS = {
     "ASSORTMENT_CONFIRMED": "Zatwierdzenie asortymentu (powiadomienie do kierownika)",
     "RAPORT_ZADRUKU_ZAPISANY": "Zapisany raport kontroli zadruku (powiadomienie)",
     "RAPORT_PRODUKCJI_ZAPISANY": "Zapisany raport produkcji (powiadomienie)",
+    "WINDING_REPORT_SUBMITTED": "Zapisany raport przewijania (powiadomienie)",
 }
 
 PROBLEM_CATEGORY_DEFINITIONS = (
@@ -320,16 +321,39 @@ def find_pending_machine_handover(cur, machine: str, now_local: datetime | None 
     return None
 
 
+def find_pending_role_shift_handover(cur, role: str, now_local: datetime | None = None) -> dict | None:
+    active_shift, handover_date = resolve_active_shift(cur, now_local=now_local)
+    cur.execute(
+        """
+        SELECT rsh.*, incoming.name AS incoming_shift_name, outgoing.name AS outgoing_shift_name
+        FROM role_shift_handovers rsh
+        JOIN shifts incoming ON incoming.id = rsh.incoming_shift_id
+        JOIN shifts outgoing ON outgoing.id = rsh.outgoing_shift_id
+        WHERE rsh.role=? AND rsh.handover_date=? AND rsh.status='waiting_ack'
+        ORDER BY rsh.id DESC
+        """,
+        (role, handover_date),
+    )
+    for row in cur.fetchall():
+        handover = dict(row)
+        if normalize_shift_label(handover["incoming_shift_name"]) == active_shift:
+            handover["active_shift"] = active_shift
+            handover["reference_date"] = handover_date
+            return handover
+    return None
+
+
 def has_pending_role_handover(cur, role: str) -> bool:
+    if find_pending_role_shift_handover(cur, role):
+        return True
     cur.execute(
         """
         SELECT 1
-        FROM shift_handover_items shi
-        JOIN shift_handovers sh ON sh.id = shi.handover_id
-        LEFT JOIN production_report_issues pri ON pri.id = shi.production_report_issue_id
-        WHERE shi.item_type='issue' AND shi.target_role=?
-          AND COALESCE(shi.status, 'open')='open'
-          AND COALESCE(pri.status, 'new') != 'resolved'
+                FROM production_report_issues pri
+                JOIN problem_categories pc ON pc.id = pri.problem_category_id
+                WHERE pc.target_role=?
+                    AND COALESCE(pri.needs_handover, 1)=1
+                    AND COALESCE(pri.status, 'new') != 'resolved'
         LIMIT 1
         """,
         (role,),
