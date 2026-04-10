@@ -109,9 +109,61 @@ small,
 .card-header.bg-warning,
 .card-header.bg-danger,
 .card-header.text-white {
-    border-bottom: none;
-    color: #fff !important;
-    background: linear-gradient(135deg, #0f3f6f 0%, #0e7490 52%, #1e96fc 100%) !important;
+    border-bottom: 1px solid rgba(29, 53, 87, 0.10);
+    color: var(--app-primary-strong) !important;
+    background: linear-gradient(135deg, rgba(15, 63, 111, 0.08), rgba(14, 116, 144, 0.10), rgba(30, 150, 252, 0.08)) !important;
+}
+
+.card-header.bg-dark h1,
+.card-header.bg-dark h2,
+.card-header.bg-dark h3,
+.card-header.bg-dark h4,
+.card-header.bg-dark h5,
+.card-header.bg-dark h6,
+.card-header.bg-primary h1,
+.card-header.bg-primary h2,
+.card-header.bg-primary h3,
+.card-header.bg-primary h4,
+.card-header.bg-primary h5,
+.card-header.bg-primary h6,
+.card-header.bg-success h1,
+.card-header.bg-success h2,
+.card-header.bg-success h3,
+.card-header.bg-success h4,
+.card-header.bg-success h5,
+.card-header.bg-success h6,
+.card-header.bg-info h1,
+.card-header.bg-info h2,
+.card-header.bg-info h3,
+.card-header.bg-info h4,
+.card-header.bg-info h5,
+.card-header.bg-info h6,
+.card-header.bg-warning h1,
+.card-header.bg-warning h2,
+.card-header.bg-warning h3,
+.card-header.bg-warning h4,
+.card-header.bg-warning h5,
+.card-header.bg-warning h6,
+.card-header.bg-danger h1,
+.card-header.bg-danger h2,
+.card-header.bg-danger h3,
+.card-header.bg-danger h4,
+.card-header.bg-danger h5,
+.card-header.bg-danger h6,
+.card-header.text-white h1,
+.card-header.text-white h2,
+.card-header.text-white h3,
+.card-header.text-white h4,
+.card-header.text-white h5,
+.card-header.text-white h6,
+.card-header.bg-dark i,
+.card-header.bg-primary i,
+.card-header.bg-success i,
+.card-header.bg-info i,
+.card-header.bg-warning i,
+.card-header.bg-danger i,
+.card-header.text-white i {
+    color: var(--app-primary-strong) !important;
 }
 
 .alert {
@@ -238,10 +290,11 @@ textarea.form-control {
     padding: 1.6rem;
     border-radius: 30px;
     background:
-        radial-gradient(circle at top right, rgba(255,255,255,0.22), transparent 32%),
-        linear-gradient(135deg, #0f3f6f 0%, #0e7490 52%, #1fc8db 100%);
-    color: #fff;
-    box-shadow: 0 22px 48px rgba(15, 63, 111, 0.18);
+        radial-gradient(circle at top right, rgba(30, 150, 252, 0.10), transparent 32%),
+        linear-gradient(135deg, rgba(255,255,255,0.98) 0%, rgba(240,247,255,0.98) 52%, rgba(232,245,247,0.98) 100%);
+    color: var(--app-primary-strong);
+    border: 1px solid rgba(15, 63, 111, 0.12);
+    box-shadow: 0 22px 48px rgba(15, 63, 111, 0.10);
 }
 
 .hero-panel::after {
@@ -251,7 +304,7 @@ textarea.form-control {
     width: 11rem;
     height: 11rem;
     border-radius: 50%;
-    background: rgba(255,255,255,0.12);
+    background: rgba(14, 116, 144, 0.06);
 }
 
 .hero-panel h1,
@@ -261,7 +314,12 @@ textarea.form-control {
 .hero-panel h5,
 .hero-panel p,
 .hero-panel small {
-    color: #fff !important;
+    color: var(--app-primary-strong) !important;
+}
+
+.hero-panel .text-muted,
+.hero-panel .form-text {
+    color: var(--app-text-soft) !important;
 }
 
 .metric-grid,
@@ -302,6 +360,12 @@ textarea.form-control {
 .metric-card,
 .summary-card {
     padding: 1.1rem 1.2rem;
+}
+
+.hero-panel .summary-card,
+.hero-panel .metric-card {
+    background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(246,250,255,0.98));
+    border-color: rgba(15, 63, 111, 0.12);
 }
 
 .metric-card strong,
@@ -358,8 +422,8 @@ textarea.form-control {
     gap: 0.45rem;
     padding: 0.55rem 0.9rem;
     border-radius: 999px;
-    background: rgba(255,255,255,0.18);
-    color: #fff;
+    background: rgba(15, 63, 111, 0.08);
+    color: var(--app-primary-strong);
     font-weight: 700;
 }
 
@@ -369,7 +433,7 @@ textarea.form-control {
     height: 0.65rem;
     border-radius: 50%;
     background: currentColor;
-    box-shadow: 0 0 0 5px rgba(255,255,255,0.14);
+    box-shadow: 0 0 0 5px rgba(15, 63, 111, 0.08);
 }
 
 .workflow-rail {

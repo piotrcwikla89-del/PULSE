@@ -2,17 +2,38 @@
 {% if user and user.role in ['operator_mieszalni', 'prepress', 'manager', 'admin'] %}
 <script>
 (function () {
-    let lastNotificationId = 0;
+    let lastNotificationId = Number(sessionStorage.getItem('pulse:lastNotificationId') || '0');
+    let activeNotificationId = null;
+
+    function getAcknowledgedIds() {
+        try {
+            return JSON.parse(sessionStorage.getItem('pulse:acknowledgedNotifications') || '[]');
+        } catch (_error) {
+            return [];
+        }
+    }
+
+    function rememberAcknowledgedId(notificationId) {
+        var ids = getAcknowledgedIds();
+        if (!ids.includes(notificationId)) {
+            ids.push(notificationId);
+            sessionStorage.setItem('pulse:acknowledgedNotifications', JSON.stringify(ids));
+        }
+    }
 
     function checkForNewNotifications() {
         fetch('/api/notifications/new')
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 if (data.notifications && data.notifications.length > 0) {
-                    var n = data.notifications[0];
-                    if (n.id > lastNotificationId) {
-                        lastNotificationId = n.id;
-                        showNotificationModal(n);
+                    var acknowledgedIds = getAcknowledgedIds();
+                    var nextNotification = data.notifications.find(function (item) {
+                        return !acknowledgedIds.includes(item.id);
+                    });
+                    if (nextNotification && activeNotificationId !== nextNotification.id) {
+                        lastNotificationId = Math.max(lastNotificationId, nextNotification.id);
+                        sessionStorage.setItem('pulse:lastNotificationId', String(lastNotificationId));
+                        showNotificationModal(nextNotification);
                     }
                 }
             })
@@ -20,6 +41,7 @@
     }
 
     function showNotificationModal(notification) {
+        activeNotificationId = notification.id;
         var zlec = notification.plan_order_number || (notification.plan_id != null ? '(ID planu: ' + notification.plan_id + ')' : 'n/d');
         var lub = notification.plan_lub_number || 'n/d';
         var modalHtml = `
@@ -55,6 +77,7 @@
                 .then(function (r) { return r.json(); })
                 .then(function (data) {
                     if (data.success) {
+                        rememberAcknowledgedId(notification.id);
                         modal.hide();
                         var el = document.getElementById('globalNotificationModal');
                         if (el) el.remove();
@@ -63,6 +86,7 @@
         });
 
         document.getElementById('globalNotificationModal').addEventListener('hidden.bs.modal', function () {
+            activeNotificationId = null;
             this.remove();
         });
     }

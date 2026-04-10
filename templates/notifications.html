@@ -55,17 +55,34 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-let lastNotificationId = 0;
+let lastNotificationId = Number(sessionStorage.getItem('pulse:lastNotificationId') || '0');
 let currentNotification = null;
+
+function getAcknowledgedIds() {
+    try {
+        return JSON.parse(sessionStorage.getItem('pulse:acknowledgedNotifications') || '[]');
+    } catch (_error) {
+        return [];
+    }
+}
+
+function rememberAcknowledgedId(notificationId) {
+    const ids = getAcknowledgedIds();
+    if (!ids.includes(notificationId)) {
+        ids.push(notificationId);
+        sessionStorage.setItem('pulse:acknowledgedNotifications', JSON.stringify(ids));
+    }
+}
 
 function checkForNewNotifications() {
     fetch('/api/notifications/new')
         .then(response => response.json())
         .then(data => {
             if (data.notifications && data.notifications.length > 0) {
-                const notification = data.notifications[0]; // Najnowsze
-                if (notification.id > lastNotificationId) {
-                    lastNotificationId = notification.id;
+                const notification = data.notifications.find(item => !getAcknowledgedIds().includes(item.id));
+                if (notification && notification.id > 0 && notification.id !== (currentNotification && currentNotification.id)) {
+                    lastNotificationId = Math.max(lastNotificationId, notification.id);
+                    sessionStorage.setItem('pulse:lastNotificationId', String(lastNotificationId));
                     showNotificationModal(notification);
                 }
             }
@@ -98,9 +115,16 @@ document.getElementById('confirmNotification').addEventListener('click', functio
         .then(response => response.json())
         .then(data => {
             if (data.success) {
+                rememberAcknowledgedId(currentNotification.id);
                 const modal = bootstrap.Modal.getInstance(document.getElementById('notificationModal'));
                 modal.hide();
-                location.reload(); // Odśwież stronę, żeby pokazać nowe powiadomienia
+                const row = document.querySelector(`[data-id="${currentNotification.id}"]`);
+                if (row) {
+                    row.classList.remove('list-group-item-warning');
+                    const button = row.querySelector('.mark-read');
+                    if (button) button.remove();
+                }
+                currentNotification = null;
             }
         });
     }
@@ -125,6 +149,7 @@ document.addEventListener('click', function(e) {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
+                rememberAcknowledgedId(Number(id));
                 e.target.closest('li').classList.remove('list-group-item-warning');
                 e.target.remove();
             }
