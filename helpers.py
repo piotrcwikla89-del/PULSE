@@ -249,8 +249,12 @@ def normalize_shift_label(shift_val: str) -> str:
     return s
 
 
-def _parse_shift_time(value: str) -> tuple[int, int] | None:
-    raw = (value or "").strip()
+def _parse_shift_time(value) -> tuple[int, int] | None:
+    if value is None:
+        return None
+    if hasattr(value, "hour") and hasattr(value, "minute"):
+        return int(value.hour), int(value.minute)
+    raw = str(value).strip()
     if not raw:
         return None
     try:
