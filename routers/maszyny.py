@@ -468,6 +468,11 @@ def maszyna_plany(
         (machine.upper(),),
     )
     plan_rows = cur.fetchall()
+    cur.execute(
+        "SELECT * FROM production_plans WHERE machine=? AND status='in_progress' ORDER BY id DESC LIMIT 1",
+        (machine.upper(),),
+    )
+    active_plan = cur.fetchone()
     plans = enrich_plans_with_lub_materials(cur, plan_rows)
     can_move = user["role"] in ("admin", "manager")
     other_machines = [m for m in PRODUCTION_MACHINES if m != machine.upper()]
@@ -476,6 +481,7 @@ def maszyna_plany(
     return render_template("maszyna_plany.html", {
         "machine": machine.upper(),
         "plans": plans,
+        "active_plan": dict(active_plan) if active_plan else None,
         "user": {"username": user["username"], "role": user["role"]},
         "can_move": can_move,
         "other_machines": other_machines,

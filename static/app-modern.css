@@ -2,9 +2,9 @@
     --app-bg: #f3f8ff;
     --app-surface: rgba(255, 255, 255, 0.9);
     --app-surface-strong: #ffffff;
-    --app-border: rgba(29, 53, 87, 0.12);
+    --app-border: rgba(29, 53, 87, 0.18);
     --app-text: #12304a;
-    --app-text-soft: #59708a;
+    --app-text-soft: #415a73;
     --app-primary: #0e7490;
     --app-primary-strong: #0f3f6f;
     --app-accent: #ff8a3d;
@@ -27,10 +27,10 @@ body {
 
 body.bg-light {
     background:
-        radial-gradient(circle at top left, rgba(18, 159, 215, 0.18), transparent 26%),
-        radial-gradient(circle at top right, rgba(255, 138, 61, 0.14), transparent 22%),
-        radial-gradient(circle at bottom left, rgba(25, 135, 84, 0.10), transparent 24%),
-        linear-gradient(180deg, #eef6ff 0%, #f9fbff 56%, #edf4ff 100%);
+        radial-gradient(circle at top left, rgba(18, 159, 215, 0.14), transparent 26%),
+        radial-gradient(circle at top right, rgba(255, 138, 61, 0.10), transparent 22%),
+        radial-gradient(circle at bottom left, rgba(25, 135, 84, 0.08), transparent 24%),
+        linear-gradient(180deg, #e6eef9 0%, #f3f7fc 56%, #e9f0f8 100%);
     background-attachment: fixed;
 }
 
@@ -83,7 +83,7 @@ small,
 }
 
 .card {
-    background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(247,250,255,0.96));
+    background: linear-gradient(180deg, rgba(255,255,255,0.995), rgba(250,252,255,0.985));
     border: 1px solid var(--app-border);
     border-radius: var(--app-radius-lg);
     box-shadow: var(--app-shadow-soft);
@@ -99,7 +99,7 @@ small,
 
 .card-header {
     border-bottom: 1px solid rgba(29, 53, 87, 0.08);
-    background: linear-gradient(135deg, rgba(14, 116, 144, 0.1), rgba(61, 156, 245, 0.08));
+    background: linear-gradient(135deg, rgba(14, 116, 144, 0.16), rgba(61, 156, 245, 0.10));
 }
 
 .card-header.bg-dark,
@@ -118,6 +118,7 @@ small,
     border: none;
     border-radius: var(--app-radius-md);
     box-shadow: var(--app-shadow-soft);
+    color: var(--app-primary-strong);
 }
 
 .btn {
@@ -173,7 +174,8 @@ small,
 .btn-outline-info,
 .btn-outline-dark {
     border-color: rgba(15, 63, 111, 0.15);
-    background: rgba(255,255,255,0.78);
+    background: rgba(255,255,255,0.94);
+    color: var(--app-primary-strong);
 }
 
 .badge {
@@ -199,7 +201,7 @@ small,
 }
 
 .table-light {
-    --bs-table-bg: rgba(14, 116, 144, 0.06);
+    --bs-table-bg: rgba(14, 116, 144, 0.10);
 }
 
 .form-control,
@@ -330,19 +332,19 @@ textarea.form-control {
 }
 
 .action-card.primary-tone {
-    background: linear-gradient(135deg, rgba(15, 63, 111, 0.12), rgba(61, 156, 245, 0.12));
+    background: linear-gradient(135deg, rgba(15, 63, 111, 0.18), rgba(61, 156, 245, 0.18));
 }
 
 .action-card.success-tone {
-    background: linear-gradient(135deg, rgba(25, 135, 84, 0.12), rgba(46, 191, 145, 0.12));
+    background: linear-gradient(135deg, rgba(25, 135, 84, 0.18), rgba(46, 191, 145, 0.18));
 }
 
 .action-card.warning-tone {
-    background: linear-gradient(135deg, rgba(244, 183, 64, 0.16), rgba(255, 138, 61, 0.14));
+    background: linear-gradient(135deg, rgba(244, 183, 64, 0.24), rgba(255, 138, 61, 0.20));
 }
 
 .action-card.danger-tone {
-    background: linear-gradient(135deg, rgba(217, 83, 79, 0.12), rgba(255, 95, 69, 0.12));
+    background: linear-gradient(135deg, rgba(217, 83, 79, 0.18), rgba(255, 95, 69, 0.18));
 }
 
 .action-card.disabled {
@@ -457,8 +459,13 @@ textarea.form-control {
 .surface-note {
     padding: 1rem 1.1rem;
     border-radius: 18px;
-    background: rgba(255,255,255,0.82);
-    border: 1px dashed rgba(15, 63, 111, 0.16);
+    background: rgba(255,255,255,0.94);
+    border: 1px dashed rgba(15, 63, 111, 0.22);
+}
+
+.active-job-banner {
+    border: 1px solid rgba(15, 63, 111, 0.14);
+    background: linear-gradient(135deg, rgba(15, 63, 111, 0.06), rgba(14, 116, 144, 0.10), rgba(21, 164, 111, 0.08));
 }
 
 .dashboard-card,

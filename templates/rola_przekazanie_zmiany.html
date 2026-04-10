@@ -43,7 +43,7 @@
     {% endif %}
 
     {% if has_pending_handover %}
-    <div class="alert alert-warning">Masz otwarte problemy z przekazania zmiany. Ten widok będzie otwierany po logowaniu, dopóki pozostają nierozwiązane pozycje.</div>
+    <div class="alert alert-warning">Masz otwarte problemy przypisane do swojej roli. Odnosisz się do nich tutaj zbiorczo w formularzu przekazania zmiany.</div>
     {% endif %}
 
     {% if pending_role_handover and pending_role_handover.status == 'waiting_ack' %}
@@ -102,9 +102,9 @@
         <div class="card-body">
             <p class="text-muted small mb-3">
                 {% if user.role == 'operator_mieszalni' %}
-                Tu możesz na bieżąco dopisywać uwagi z przebiegu zmiany mieszalni, zapisywać szkic i wysłać całość na koniec zmiany.
+                Tu możesz na bieżąco dopisywać uwagi z przebiegu zmiany mieszalni, a na końcu odnieść się zbiorczo do problemów zgłoszonych przez maszyny.
                 {% else %}
-                Tu możesz na bieżąco dopisywać uwagi z przebiegu zmiany prepressu, zapisywać szkic i wysłać całość na koniec zmiany.
+                Tu możesz na bieżąco dopisywać uwagi z przebiegu zmiany prepressu, a na końcu odnieść się zbiorczo do problemów zgłoszonych przez maszyny.
                 {% endif %}
             </p>
             <form method="post" action="/przekazanie-zmiany">
@@ -151,7 +151,7 @@
 
     <div class="card shadow-sm mb-4">
         <div class="card-header bg-white">
-            <h5 class="mb-0">Problemy do przejęcia z przekazań drukarzy</h5>
+            <h5 class="mb-0">Problemy z maszyn do ujęcia w przekazaniu zmiany</h5>
         </div>
         <div class="card-body">
             {% if issues %}

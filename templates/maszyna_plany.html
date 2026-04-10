@@ -100,6 +100,9 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1><i class="fas fa-calendar-check"></i> Plany Dzienne - {{ machine }}</h1>
         <div>
+            {% if user.role == 'drukarz' and active_plan %}
+            <a href="/maszyna/{{ machine|lower }}/job/{{ active_plan.id }}" class="btn btn-dark btn-sm"><i class="fas fa-rotate-left"></i> Powrót do aktywnego zlecenia</a>
+            {% endif %}
             {% if user.role == 'drukarz' %}
             <a href="/maszyna/{{ machine|lower }}/przekazanie-zmiany" class="btn btn-outline-dark btn-sm"><i class="fas fa-people-arrows-left-right"></i> Przekazanie zmiany</a>
             {% endif %}
@@ -129,6 +132,21 @@
     {% endif %}
     {% if prep_ui %}
     <p class="text-muted small mb-3"><i class="fas fa-info-circle"></i> Rozwiń wiersz <strong>Materiały LUB</strong>, sprawdź stany magazynowe i zatwierdź przygotowanie przed produkcją.</p>
+    {% endif %}
+
+    {% if user.role == 'drukarz' and active_plan %}
+    <div class="card shadow-sm mb-4 active-job-banner">
+        <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-3">
+            <div>
+                <div class="small text-uppercase fw-semibold">Aktywne zlecenie produkcyjne</div>
+                <div class="fs-5 fw-bold">{{ active_plan.order_number }}{% if active_plan.order_name %} · {{ active_plan.order_name }}{% endif %}</div>
+                <div class="text-muted small">Zlecenie jest w toku. Możesz wrócić do widoku operacyjnego w dowolnym momencie.</div>
+            </div>
+            <a href="/maszyna/{{ machine|lower }}/job/{{ active_plan.id }}" class="btn btn-primary">
+                <i class="fas fa-arrow-up-right-from-square"></i> Otwórz aktywne zlecenie
+            </a>
+        </div>
+    </div>
     {% endif %}
 
     <div class="card shadow-sm mb-4">
