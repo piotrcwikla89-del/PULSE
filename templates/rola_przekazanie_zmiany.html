@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Przekazanie zmiany</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body class="bg-light">
+<div class="container mt-4 mb-5">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+        <h1 class="h3"><i class="fas fa-people-arrows-left-right"></i> Przekazanie zmiany</h1>
+        <div>
+            <a href="/dashboard" class="btn btn-outline-secondary btn-sm"><i class="fas fa-home"></i> Dashboard</a>
+            <a href="/logout" class="btn btn-outline-danger btn-sm"><i class="fas fa-sign-out-alt"></i> Wyloguj</a>
+        </div>
+    </div>
+
+    <div class="alert alert-secondary">
+        {% if user.role == 'operator_mieszalni' %}
+        Widok pokazuje problemy skierowane do mieszalni oraz listę zleceń z przygotowanymi farbami.
+        {% else %}
+        Widok pokazuje problemy skierowane do prepressu oraz listę zleceń z przygotowanymi matrycami.
+        {% endif %}
+    </div>
+
+    {% if success == 'status' %}
+    <div class="alert alert-success">Status problemu został zaktualizowany.</div>
+    {% endif %}
+
+    {% if has_pending_handover %}
+    <div class="alert alert-warning">Masz otwarte problemy z przekazania zmiany. Ten widok będzie otwierany po logowaniu, dopóki pozostają nierozwiązane pozycje.</div>
+    {% endif %}
+
+    <div class="d-flex flex-wrap gap-2 mb-3">
+        <a href="/przekazanie-zmiany?view=open" class="btn btn-sm {% if view_mode == 'open' %}btn-dark{% else %}btn-outline-dark{% endif %}">Otwarte</a>
+        <a href="/przekazanie-zmiany?view=resolved" class="btn btn-sm {% if view_mode == 'resolved' %}btn-dark{% else %}btn-outline-dark{% endif %}">Rozwiązane</a>
+        <a href="/przekazanie-zmiany?view=all" class="btn btn-sm {% if view_mode == 'all' %}btn-dark{% else %}btn-outline-dark{% endif %}">Wszystkie</a>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white">
+            <h5 class="mb-0">Problemy do przejęcia z przekazań drukarzy</h5>
+        </div>
+        <div class="card-body">
+            {% if issues %}
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                    <thead class="table-light">
+                        <tr><th>Data</th><th>Maszyna</th><th>Od kogo</th><th>Problem</th><th>Zlecenie</th><th>Opis</th><th>Status</th><th>Komentarz zmiany</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for issue in issues %}
+                        <tr>
+                            <td><small>{{ issue.handover_date }}</small></td>
+                            <td>{{ issue.machine }}</td>
+                            <td>{{ issue.created_by }}</td>
+                            <td><strong>{{ issue.title }}</strong></td>
+                            <td>{{ issue.job_number or '—' }}</td>
+                            <td>
+                                {{ issue.details or '—' }}
+                                {% if issue.short_note and issue.short_note != issue.details %}
+                                <br><small class="text-muted">Notatka drukarza: {{ issue.short_note }}</small>
+                                {% endif %}
+                                {% if issue.resolution_note %}
+                                <br><small class="text-success">Notatka rozwiązania: {{ issue.resolution_note }}</small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="mb-2">
+                                    {% if issue.issue_status == 'resolved' %}
+                                    <span class="badge bg-success">Tak</span>
+                                    {% if issue.resolved_by %}<br><small class="text-muted">{{ issue.resolved_by }}</small>{% endif %}
+                                    {% else %}
+                                    <span class="badge bg-warning text-dark">Nie</span>
+                                    {% endif %}
+                                </div>
+                                {% if issue.production_issue_id %}
+                                <form method="post" action="/przekazanie-zmiany/problem/{{ issue.production_issue_id }}/status" class="d-grid gap-2">
+                                    <input type="hidden" name="view" value="{{ view_mode }}">
+                                    <input type="text" name="resolution_note" class="form-control form-control-sm" placeholder="Opcjonalna notatka rozwiązania" value="{{ issue.resolution_note or '' }}">
+                                    <div class="d-flex gap-1">
+                                        <button type="submit" name="resolved" value="yes" class="btn btn-sm btn-outline-success">Tak</button>
+                                        <button type="submit" name="resolved" value="no" class="btn btn-sm btn-outline-secondary">Nie</button>
+                                    </div>
+                                </form>
+                                {% endif %}
+                            </td>
+                            <td><small>{{ issue.summary_comment or '—' }}</small></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted mb-0">Brak pozycji dla wybranego filtra.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-header bg-white">
+            <h5 class="mb-0">{{ prep_title }}</h5>
+        </div>
+        <div class="card-body">
+            {% if prepared_items %}
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                    <thead class="table-light">
+                        <tr><th>Maszyna</th><th>Zlecenie</th><th>LUB</th><th>Nazwa</th><th>Laminat</th><th>Data planu</th><th>Status</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for item in prepared_items %}
+                        <tr>
+                            <td>{{ item.machine }}</td>
+                            <td>{{ item.order_number }}</td>
+                            <td>{{ item.lub_number or '—' }}</td>
+                            <td>{{ item.order_name or '—' }}</td>
+                            <td>{{ item.laminate or '—' }}</td>
+                            <td>{{ item.planned_date or '—' }}</td>
+                            <td><span class="badge bg-success">{{ item.prep_status }}</span></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted mb-0">Brak przygotowanego asortymentu do wyświetlenia.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+{% include '_notification_poll.html' %}
+</body>
+</html>

@@ -200,6 +200,95 @@ def migrate_schema_postgres(cur) -> None:
                 UNIQUE(farba_id, lub_number)
             )
         """)
+    cur.execute(
+        "SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='problem_categories'"
+    )
+    if not cur.fetchone():
+        cur.execute("""
+            CREATE TABLE problem_categories (
+                id SERIAL PRIMARY KEY,
+                code TEXT NOT NULL UNIQUE,
+                label TEXT NOT NULL,
+                target_role TEXT NOT NULL,
+                visible_for_manager INTEGER NOT NULL DEFAULT 1,
+                is_active INTEGER NOT NULL DEFAULT 1,
+                sort_order INTEGER NOT NULL DEFAULT 0
+            )
+        """)
+    cur.execute(
+        "SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='production_report_issues'"
+    )
+    if not cur.fetchone():
+        cur.execute("""
+            CREATE TABLE production_report_issues (
+                id SERIAL PRIMARY KEY,
+                production_report_id INTEGER NOT NULL,
+                problem_category_id INTEGER NOT NULL,
+                machine TEXT NOT NULL,
+                plan_id INTEGER,
+                reported_by TEXT NOT NULL,
+                issue_scope TEXT NOT NULL DEFAULT 'job',
+                short_note TEXT,
+                is_blocking INTEGER NOT NULL DEFAULT 0,
+                needs_handover INTEGER NOT NULL DEFAULT 1,
+                status TEXT NOT NULL DEFAULT 'new',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                resolved_at TIMESTAMP,
+                resolved_by TEXT,
+                resolution_note TEXT,
+                FOREIGN KEY (production_report_id) REFERENCES production_reports(id) ON DELETE CASCADE,
+                FOREIGN KEY (problem_category_id) REFERENCES problem_categories(id),
+                FOREIGN KEY (plan_id) REFERENCES production_plans(id)
+            )
+        """)
+    cur.execute(
+        "SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='shift_handovers'"
+    )
+    if not cur.fetchone():
+        cur.execute("""
+            CREATE TABLE shift_handovers (
+                id SERIAL PRIMARY KEY,
+                handover_date DATE NOT NULL,
+                machine TEXT NOT NULL,
+                outgoing_shift_id INTEGER NOT NULL,
+                incoming_shift_id INTEGER NOT NULL,
+                created_by TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                summary_comment TEXT,
+                status TEXT NOT NULL DEFAULT 'waiting_ack',
+                acknowledged_by TEXT,
+                acknowledged_at TIMESTAMP,
+                acknowledgement_note TEXT,
+                UNIQUE(handover_date, machine, outgoing_shift_id, incoming_shift_id),
+                FOREIGN KEY (outgoing_shift_id) REFERENCES shifts(id),
+                FOREIGN KEY (incoming_shift_id) REFERENCES shifts(id)
+            )
+        """)
+    cur.execute(
+        "SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='shift_handover_items'"
+    )
+    if not cur.fetchone():
+        cur.execute("""
+            CREATE TABLE shift_handover_items (
+                id SERIAL PRIMARY KEY,
+                handover_id INTEGER NOT NULL,
+                item_type TEXT NOT NULL,
+                target_role TEXT,
+                production_report_issue_id INTEGER,
+                plan_id INTEGER,
+                job_number TEXT,
+                machine TEXT,
+                lub_number TEXT,
+                title TEXT NOT NULL,
+                details TEXT,
+                status TEXT NOT NULL DEFAULT 'open',
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (handover_id) REFERENCES shift_handovers(id) ON DELETE CASCADE,
+                FOREIGN KEY (production_report_issue_id) REFERENCES production_report_issues(id),
+                FOREIGN KEY (plan_id) REFERENCES production_plans(id)
+            )
+        """)
 
 
 def init_postgres_schema(cur) -> None:
@@ -392,6 +481,79 @@ def init_postgres_schema(cur) -> None:
             username TEXT UNIQUE NOT NULL,
             role TEXT NOT NULL,
             password TEXT
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS problem_categories (
+            id SERIAL PRIMARY KEY,
+            code TEXT NOT NULL UNIQUE,
+            label TEXT NOT NULL,
+            target_role TEXT NOT NULL,
+            visible_for_manager INTEGER NOT NULL DEFAULT 1,
+            is_active INTEGER NOT NULL DEFAULT 1,
+            sort_order INTEGER NOT NULL DEFAULT 0
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS production_report_issues (
+            id SERIAL PRIMARY KEY,
+            production_report_id INTEGER NOT NULL,
+            problem_category_id INTEGER NOT NULL,
+            machine TEXT NOT NULL,
+            plan_id INTEGER,
+            reported_by TEXT NOT NULL,
+            issue_scope TEXT NOT NULL DEFAULT 'job',
+            short_note TEXT,
+            is_blocking INTEGER NOT NULL DEFAULT 0,
+            needs_handover INTEGER NOT NULL DEFAULT 1,
+            status TEXT NOT NULL DEFAULT 'new',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            resolved_at TIMESTAMP,
+            resolved_by TEXT,
+            resolution_note TEXT,
+            FOREIGN KEY (production_report_id) REFERENCES production_reports(id) ON DELETE CASCADE,
+            FOREIGN KEY (problem_category_id) REFERENCES problem_categories(id),
+            FOREIGN KEY (plan_id) REFERENCES production_plans(id)
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS shift_handovers (
+            id SERIAL PRIMARY KEY,
+            handover_date DATE NOT NULL,
+            machine TEXT NOT NULL,
+            outgoing_shift_id INTEGER NOT NULL,
+            incoming_shift_id INTEGER NOT NULL,
+            created_by TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            summary_comment TEXT,
+            status TEXT NOT NULL DEFAULT 'waiting_ack',
+            acknowledged_by TEXT,
+            acknowledged_at TIMESTAMP,
+            acknowledgement_note TEXT,
+            UNIQUE(handover_date, machine, outgoing_shift_id, incoming_shift_id),
+            FOREIGN KEY (outgoing_shift_id) REFERENCES shifts(id),
+            FOREIGN KEY (incoming_shift_id) REFERENCES shifts(id)
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS shift_handover_items (
+            id SERIAL PRIMARY KEY,
+            handover_id INTEGER NOT NULL,
+            item_type TEXT NOT NULL,
+            target_role TEXT,
+            production_report_issue_id INTEGER,
+            plan_id INTEGER,
+            job_number TEXT,
+            machine TEXT,
+            lub_number TEXT,
+            title TEXT NOT NULL,
+            details TEXT,
+            status TEXT NOT NULL DEFAULT 'open',
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (handover_id) REFERENCES shift_handovers(id) ON DELETE CASCADE,
+            FOREIGN KEY (production_report_issue_id) REFERENCES production_report_issues(id),
+            FOREIGN KEY (plan_id) REFERENCES production_plans(id)
         )
         """,
     ]

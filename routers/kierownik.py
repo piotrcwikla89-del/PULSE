@@ -1,6 +1,8 @@
 """
 Router: panel kierownika — raporty, statystyki, dziennik zmian.
 """
+from collections import defaultdict
+
 from fastapi import APIRouter, Depends, Query
 from starlette.requests import Request
 
@@ -37,7 +39,34 @@ def kierownik_rejestr_raportow(
         "SELECT * FROM production_reports WHERE date=? ORDER BY machine, created_at DESC",
         (date_q,),
     )
-    production_reports = cur.fetchall()
+    production_reports = [dict(row) for row in cur.fetchall()]
+    issues_by_report = defaultdict(list)
+    if production_reports:
+        placeholders = ", ".join(["?"] * len(production_reports))
+        params = [report["id"] for report in production_reports]
+        cur.execute(
+            f"""
+            SELECT pri.production_report_id, pc.label, pc.target_role, pri.short_note, pri.status,
+                   pri.resolved_by, pri.resolved_at, pri.resolution_note
+            FROM production_report_issues pri
+            JOIN problem_categories pc ON pc.id = pri.problem_category_id
+            WHERE pri.production_report_id IN ({placeholders})
+            ORDER BY pri.id
+            """,
+            params,
+        )
+        for row in cur.fetchall():
+            issues_by_report[row["production_report_id"]].append({
+                "label": row["label"],
+                "target_role": row["target_role"],
+                "short_note": row["short_note"],
+                "status": row["status"],
+                "resolved_by": row["resolved_by"],
+                "resolved_at": row["resolved_at"],
+                "resolution_note": row["resolution_note"],
+            })
+    for report in production_reports:
+        report["issues"] = issues_by_report.get(report["id"], [])
     return render_template("kierownik_rejestr_raportow.html", {
         "user": {"username": user["username"], "role": user["role"]},
         "date_q": date_q,

@@ -8,9 +8,29 @@ from fastapi.responses import RedirectResponse
 from starlette.requests import Request
 
 from dependencies import get_current_user, require_auth, get_db
-from helpers import render_template, get_base_path
+from helpers import find_pending_machine_handover, get_base_path, has_pending_role_handover, render_template
 
 router = APIRouter()
+
+
+def _resolve_post_login_redirect(request: Request, user, cur) -> str:
+    role = user["role"]
+    if role == "drukarz":
+        machine = request.session.get("machine")
+        if not machine:
+            return "/select-machine"
+        pending_handover = find_pending_machine_handover(cur, machine)
+        if pending_handover:
+            return f"/maszyna/{machine.lower()}/przekazanie-zmiany/odbior?handover_id={pending_handover['id']}"
+        return f"/maszyna/{machine.lower()}/plany"
+    if role == "operator_przewijarki":
+        machine = request.session.get("machine")
+        if not machine:
+            return "/select-przewijarka"
+        return f"/przewijarka/{machine.lower()}/plany"
+    if role in ("operator_mieszalni", "prepress") and has_pending_role_handover(cur, role):
+        return "/przekazanie-zmiany"
+    return "/dashboard"
 
 
 @router.get("/login")
@@ -39,11 +59,7 @@ def login(
     if user:
         request.session["username"] = user["username"]
         request.session["role"] = user["role"]
-        if user["role"] == "drukarz":
-            return RedirectResponse("/select-machine", status_code=303)
-        if user["role"] == "operator_przewijarki":
-            return RedirectResponse("/select-przewijarka", status_code=303)
-        return RedirectResponse("/dashboard", status_code=303)
+        return RedirectResponse(_resolve_post_login_redirect(request, user, cur), status_code=303)
     else:
         cur.execute("SELECT username FROM users WHERE role != 'admin' ORDER BY username")
         operators = cur.fetchall()
@@ -61,17 +77,11 @@ def logout(request: Request):
 
 
 @router.get("/dashboard")
-def dashboard(request: Request, user=Depends(require_auth)):
-    if user["role"] == "drukarz":
-        machine = request.session.get("machine")
-        if not machine:
-            return RedirectResponse("/select-machine", status_code=303)
-        return RedirectResponse(f"/maszyna/{machine.lower()}/plany", status_code=303)
-    if user["role"] == "operator_przewijarki":
-        machine = request.session.get("machine")
-        if not machine:
-            return RedirectResponse("/select-przewijarka", status_code=303)
-        return RedirectResponse(f"/przewijarka/{machine.lower()}/plany", status_code=303)
+def dashboard(request: Request, user=Depends(require_auth), conn=Depends(get_db)):
+    cur = conn.cursor()
+    redirect_path = _resolve_post_login_redirect(request, user, cur)
+    if redirect_path != "/dashboard":
+        return RedirectResponse(redirect_path, status_code=303)
     return render_template("dashboard.html", {
         "user": {"username": user["username"], "role": user["role"]}
     })

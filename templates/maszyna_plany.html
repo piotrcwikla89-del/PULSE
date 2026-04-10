@@ -83,6 +83,12 @@
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Zamknij"></button>
     </div>
     {% endif %}
+    {% if success_msg == 'przejecie_zmiany' %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        Potwierdzono przejęcie zmiany i możesz przejść do pracy na maszynie.
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Zamknij"></button>
+    </div>
+    {% endif %}
     {% if error_msg and error_msg not in ['asortyment_blad','brak_farb','brak_polimerów','brak_lub'] %}
     <div class="alert alert-danger alert-dismissible fade show" role="alert">
         {% if error_msg == 'niewlasciwa_maszyna' %}Nieprawidłowa maszyna źródłowa lub docelowa.{% elif error_msg == 'ta_sama_maszyna' %}Wybierz inną maszynę docelową.{% elif error_msg == 'brak_zlecenia' %}Nie znaleziono zlecenia na tej maszynie.{% elif error_msg == 'tylko_planowane' %}Można przenosić tylko zlecenia w statusie „zaplanowane” (nie rozpoczęte na maszynie).{% else %}Operacja nie powiodła się.{% endif %}
@@ -93,6 +99,9 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1><i class="fas fa-calendar-check"></i> Plany Dzienne - {{ machine }}</h1>
         <div>
+            {% if user.role == 'drukarz' %}
+            <a href="/maszyna/{{ machine|lower }}/przekazanie-zmiany" class="btn btn-outline-dark btn-sm"><i class="fas fa-people-arrows-left-right"></i> Przekazanie zmiany</a>
+            {% endif %}
             {% if user.role in ['operator_mieszalni', 'prepress'] %}
             <a href="/plany" class="btn btn-outline-primary btn-sm"><i class="fas fa-arrow-left"></i> Wybór maszyny</a>
             {% else %}

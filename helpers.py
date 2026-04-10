@@ -6,7 +6,7 @@ from __future__ import annotations
 import os
 import sys
 from collections import defaultdict
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from urllib.parse import urlencode
 
 from fastapi.responses import HTMLResponse
@@ -14,7 +14,7 @@ from jinja2 import Environment, FileSystemLoader
 from starlette.requests import Request
 
 from db_compat import is_postgres
-from time_utils import format_local_datetime, local_datetime_str, local_today, utc_now_db_string
+from time_utils import format_local_datetime, local_datetime_str, local_now, local_today, utc_now_db_string
 
 # ==================== ŚCIEŻKI ====================
 
@@ -168,6 +168,14 @@ NOTIFICATION_EVENT_LABELS = {
     "RAPORT_PRODUKCJI_ZAPISANY": "Zapisany raport produkcji (powiadomienie)",
 }
 
+PROBLEM_CATEGORY_DEFINITIONS = (
+    ("farby", "Farby", "operator_mieszalni", 1),
+    ("polimery", "Polimery", "prepress", 2),
+    ("laminat", "Laminat", "manager", 3),
+    ("brak_pomocnika", "Brak pomocnika", "manager", 4),
+    ("problemy_techniczne_maszyna", "Problemy techniczne na maszynie", "manager", 5),
+)
+
 
 def is_notification_enabled(cur, event_key: str) -> bool:
     cur.execute("SELECT enabled FROM notification_settings WHERE event_key=?", (event_key,))
@@ -202,6 +210,18 @@ def seed_notification_settings_rows(cur):
         )
 
 
+def seed_problem_categories(cur):
+    for code, label, target_role, sort_order in PROBLEM_CATEGORY_DEFINITIONS:
+        cur.execute(
+            """
+            INSERT INTO problem_categories (code, label, target_role, visible_for_manager, is_active, sort_order)
+            VALUES (?, ?, ?, 1, 1, ?)
+            ON CONFLICT(code) DO NOTHING
+            """,
+            (code, label, target_role, sort_order),
+        )
+
+
 def get_edit_password(cur) -> str:
     """Zwraca aktualne hasło edycji z system_settings (domyślnie 'haslo')."""
     try:
@@ -227,6 +247,90 @@ def normalize_shift_label(shift_val: str) -> str:
     if s in ("noc", "night", "2"):
         return "noc"
     return s
+
+
+def _parse_shift_time(value: str) -> tuple[int, int] | None:
+    raw = (value or "").strip()
+    if not raw:
+        return None
+    try:
+        parts = raw.split(":")
+        return int(parts[0]), int(parts[1])
+    except (IndexError, ValueError):
+        return None
+
+
+def resolve_active_shift(cur, now_local: datetime | None = None) -> tuple[str, str]:
+    current_local = now_local or local_now()
+    current_minutes = current_local.hour * 60 + current_local.minute
+    shift_rows = []
+    try:
+        cur.execute("SELECT name, start_time, end_time FROM shifts")
+        shift_rows = cur.fetchall()
+    except Exception:
+        shift_rows = []
+
+    for row in shift_rows:
+        shift_norm = normalize_shift_label(row["name"])
+        start_parts = _parse_shift_time(row["start_time"])
+        end_parts = _parse_shift_time(row["end_time"])
+        if start_parts is None or end_parts is None:
+            continue
+        start_minutes = start_parts[0] * 60 + start_parts[1]
+        end_minutes = end_parts[0] * 60 + end_parts[1]
+        crosses_midnight = start_minutes >= end_minutes
+        if not crosses_midnight and start_minutes <= current_minutes < end_minutes:
+            return shift_norm, current_local.strftime("%Y-%m-%d")
+        if crosses_midnight and (current_minutes >= start_minutes or current_minutes < end_minutes):
+            shift_date = current_local.date()
+            if current_minutes < end_minutes:
+                shift_date = shift_date - timedelta(days=1)
+            return shift_norm, shift_date.strftime("%Y-%m-%d")
+
+    fallback_shift = "dzien" if 6 <= current_local.hour < 18 else "noc"
+    fallback_date = current_local.date()
+    if fallback_shift == "noc" and current_local.hour < 6:
+        fallback_date = fallback_date - timedelta(days=1)
+    return fallback_shift, fallback_date.strftime("%Y-%m-%d")
+
+
+def find_pending_machine_handover(cur, machine: str, now_local: datetime | None = None) -> dict | None:
+    active_shift, handover_date = resolve_active_shift(cur, now_local=now_local)
+    cur.execute(
+        """
+        SELECT sh.*, incoming.name AS incoming_shift_name, outgoing.name AS outgoing_shift_name
+        FROM shift_handovers sh
+        JOIN shifts incoming ON incoming.id = sh.incoming_shift_id
+        JOIN shifts outgoing ON outgoing.id = sh.outgoing_shift_id
+        WHERE sh.machine=? AND sh.handover_date=? AND sh.status='waiting_ack'
+        ORDER BY sh.id DESC
+        """,
+        (machine.upper(), handover_date),
+    )
+    for row in cur.fetchall():
+        handover = dict(row)
+        if normalize_shift_label(handover["incoming_shift_name"]) == active_shift:
+            handover["active_shift"] = active_shift
+            handover["reference_date"] = handover_date
+            return handover
+    return None
+
+
+def has_pending_role_handover(cur, role: str) -> bool:
+    cur.execute(
+        """
+        SELECT 1
+        FROM shift_handover_items shi
+        JOIN shift_handovers sh ON sh.id = shi.handover_id
+        LEFT JOIN production_report_issues pri ON pri.id = shi.production_report_issue_id
+        WHERE shi.item_type='issue' AND shi.target_role=?
+          AND COALESCE(shi.status, 'open')='open'
+          AND COALESCE(pri.status, 'new') != 'resolved'
+        LIMIT 1
+        """,
+        (role,),
+    )
+    return cur.fetchone() is not None
 
 
 def resolve_plan_id_for_job(cur, machine: str, job_number: str):

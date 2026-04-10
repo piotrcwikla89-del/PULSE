@@ -3,6 +3,7 @@ Router: maszyny produkcyjne — widoki, plany, zlecenia, raporty, akcje operator
 """
 import csv
 import io
+from collections import defaultdict
 
 from fastapi import APIRouter, Depends, Form, Query
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
@@ -12,7 +13,9 @@ from dependencies import get_db, is_ajax, require_auth, require_manager_or_admin
 from helpers import (
     PRODUCTION_MACHINES,
     enrich_plans_with_lub_materials,
+    find_pending_machine_handover,
     get_lub_farby,
+    has_pending_role_handover,
     insert_notification_if_enabled,
     log_domain_event,
     log_production_operation,
@@ -23,6 +26,90 @@ from helpers import (
 from time_utils import local_date_str, local_day_bounds_utc, local_time_str, local_today
 
 router = APIRouter()
+
+
+def _resolve_shift_ids(cur, outgoing_shift: str) -> tuple[int | None, int | None, str, str]:
+    outgoing_norm = normalize_shift_label(outgoing_shift)
+    incoming_norm = "noc" if outgoing_norm == "dzien" else "dzien"
+    cur.execute("SELECT id, name FROM shifts")
+    shift_ids = {normalize_shift_label(row["name"]): row["id"] for row in cur.fetchall()}
+    return shift_ids.get(outgoing_norm), shift_ids.get(incoming_norm), outgoing_norm, incoming_norm
+
+
+def _load_handover_snapshot(cur, machine: str, report_date: str, shift_norm: str) -> tuple[list[dict], list[dict]]:
+    cur.execute(
+        """
+        SELECT pr.plan_id, pr.job_number, SUM(pr.quantity) AS quantity, SUM(pr.ok_quantity) AS ok_quantity,
+               SUM(pr.nok_quantity) AS nok_quantity, MAX(pr.created_at) AS last_report_at,
+               pp.order_name, pp.lub_number
+        FROM production_reports pr
+        LEFT JOIN production_plans pp ON pp.id = pr.plan_id
+        WHERE pr.machine=? AND pr.date=? AND pr.shift=? AND COALESCE(pp.status, '')='completed'
+        GROUP BY pr.plan_id, pr.job_number, pp.order_name, pp.lub_number
+        ORDER BY MAX(pr.created_at) DESC, pr.job_number
+        """,
+        (machine.upper(), report_date, shift_norm),
+    )
+    completed_jobs = [dict(row) for row in cur.fetchall()]
+
+    cur.execute(
+        """
+        SELECT pri.id, pri.plan_id, pri.short_note, pri.status, pri.created_at,
+               pc.label, pc.target_role, pr.job_number
+        FROM production_report_issues pri
+        JOIN production_reports pr ON pr.id = pri.production_report_id
+        JOIN problem_categories pc ON pc.id = pri.problem_category_id
+        WHERE pr.machine=? AND pr.date=? AND pr.shift=?
+          AND COALESCE(pri.needs_handover, 1)=1
+          AND COALESCE(pri.status, 'new') != 'resolved'
+        ORDER BY pri.created_at DESC, pri.id DESC
+        """,
+        (machine.upper(), report_date, shift_norm),
+    )
+    issues = [dict(row) for row in cur.fetchall()]
+    return completed_jobs, issues
+
+
+def _load_role_handover_data(cur, role: str, status_filter: str = "open") -> tuple[list[dict], list[dict], str]:
+    if role not in ("operator_mieszalni", "prepress"):
+        return [], [], ""
+
+    issue_where = ""
+    if status_filter == "open":
+        issue_where = " AND COALESCE(pri.status, 'new') != 'resolved'"
+    elif status_filter == "resolved":
+        issue_where = " AND COALESCE(pri.status, 'new') = 'resolved'"
+
+    cur.execute(
+        f"""
+        SELECT sh.id AS handover_id, sh.handover_date, sh.machine, sh.created_by, sh.created_at AS handover_created_at,
+               sh.summary_comment, sh.status AS handover_status, shi.title, shi.details, shi.job_number, shi.lub_number,
+               pri.id AS production_issue_id, pri.short_note, pri.status AS issue_status,
+               pri.resolved_at, pri.resolved_by, pri.resolution_note
+        FROM shift_handover_items shi
+        JOIN shift_handovers sh ON sh.id = shi.handover_id
+        LEFT JOIN production_report_issues pri ON pri.id = shi.production_report_issue_id
+        WHERE shi.item_type='issue' AND shi.target_role=?
+        {issue_where}
+        ORDER BY sh.handover_date DESC, sh.created_at DESC, shi.sort_order, shi.id
+        """,
+        (role,),
+    )
+    issues = [dict(row) for row in cur.fetchall()]
+
+    prep_column = "farby_prep_status" if role == "operator_mieszalni" else "polimery_prep_status"
+    prep_title = "Farby przygotowane pod kolejne zlecenia" if role == "operator_mieszalni" else "Matryce przygotowane pod kolejne zlecenia"
+    cur.execute(
+        f"""
+        SELECT id AS plan_id, machine, order_number, lub_number, order_name, laminate, planned_date,
+               {prep_column} AS prep_status
+        FROM production_plans
+        WHERE status='planned' AND COALESCE({prep_column}, '')='ready'
+        ORDER BY machine, planned_date, id
+        """
+    )
+    prepared_items = [dict(row) for row in cur.fetchall()]
+    return issues, prepared_items, prep_title
 
 
 @router.get("/maszyny")
@@ -65,6 +152,89 @@ def plany(request: Request, user=Depends(require_auth), conn=Depends(get_db)):
     })
 
 
+@router.get("/przekazanie-zmiany")
+def role_przekazanie_zmiany(
+    request: Request,
+    user=Depends(require_auth),
+    success: str = Query(""),
+    view: str = Query("open"),
+    conn=Depends(get_db),
+):
+    if user["role"] not in ("operator_mieszalni", "prepress"):
+        return RedirectResponse("/dashboard", status_code=303)
+    cur = conn.cursor()
+    view_mode = view if view in ("open", "resolved", "all") else "open"
+    issues, prepared_items, prep_title = _load_role_handover_data(cur, user["role"], status_filter=view_mode)
+    return render_template("rola_przekazanie_zmiany.html", {
+        "user": {"username": user["username"], "role": user["role"]},
+        "issues": issues,
+        "prepared_items": prepared_items,
+        "prep_title": prep_title,
+        "success": success,
+        "view_mode": view_mode,
+        "has_pending_handover": has_pending_role_handover(cur, user["role"]),
+    })
+
+
+@router.post("/przekazanie-zmiany/problem/{issue_id}/status")
+def role_problem_status_update(
+    issue_id: int,
+    request: Request,
+    resolved: str = Form(...),
+    resolution_note: str = Form(""),
+    view: str = Form("open"),
+    user=Depends(require_auth),
+    conn=Depends(get_db),
+):
+    if user["role"] not in ("operator_mieszalni", "prepress"):
+        return RedirectResponse("/dashboard", status_code=303)
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT pri.id, pc.target_role, pr.machine, pr.plan_id, pc.label
+        FROM production_report_issues pri
+        JOIN problem_categories pc ON pc.id = pri.problem_category_id
+        LEFT JOIN production_reports pr ON pr.id = pri.production_report_id
+        WHERE pri.id=?
+        """,
+        (issue_id,),
+    )
+    issue_row = cur.fetchone()
+    if not issue_row or issue_row["target_role"] != user["role"]:
+        return RedirectResponse("/przekazanie-zmiany", status_code=303)
+
+    if resolved == "yes":
+        cur.execute(
+            "UPDATE production_report_issues SET status='resolved', resolved_at=CURRENT_TIMESTAMP, resolved_by=?, resolution_note=? WHERE id=?",
+            (user["username"], resolution_note.strip(), issue_id),
+        )
+        cur.execute(
+            "UPDATE shift_handover_items SET status='resolved' WHERE production_report_issue_id=?",
+            (issue_id,),
+        )
+        log_production_operation(
+            cur,
+            "problem_rozwiazany",
+            f"Problem rozwiązany: {issue_row['label']}",
+            issue_row["machine"],
+            issue_row["plan_id"],
+            user["username"],
+        )
+    else:
+        cur.execute(
+            "UPDATE production_report_issues SET status='new', resolved_at=NULL, resolved_by=NULL, resolution_note=NULL WHERE id=?",
+            (issue_id,),
+        )
+        cur.execute(
+            "UPDATE shift_handover_items SET status='open' WHERE production_report_issue_id=?",
+            (issue_id,),
+        )
+
+    conn.commit()
+    next_view = view if view in ("open", "resolved", "all") else "open"
+    return RedirectResponse(f"/przekazanie-zmiany?success=status&view={next_view}", status_code=303)
+
+
 @router.get("/select-machine")
 def select_machine_form(request: Request, user=Depends(require_auth)):
     if user["role"] != "drukarz":
@@ -79,7 +249,7 @@ def select_machine(request: Request, machine: str = Form(...), user=Depends(requ
     if machine.upper() not in PRODUCTION_MACHINES:
         return RedirectResponse("/select-machine", status_code=303)
     request.session["machine"] = machine.upper()
-    return RedirectResponse(f"/maszyna/{machine.lower()}/plany", status_code=303)
+    return RedirectResponse("/dashboard", status_code=303)
 
 
 @router.get("/maszyna/{machine}/plany")
@@ -117,6 +287,230 @@ def maszyna_plany(
         "prep_ui": prep_ui,
         "show_prep_column": show_prep_column,
     })
+
+
+@router.get("/maszyna/{machine}/przekazanie-zmiany")
+def maszyna_przekazanie_zmiany(
+    machine: str,
+    request: Request,
+    user=Depends(require_auth),
+    report_date: str = Query("", alias="date"),
+    shift: str = Query("dzien"),
+    success: str = Query(""),
+    conn=Depends(get_db),
+):
+    if user["role"] != "drukarz":
+        return RedirectResponse("/dashboard", status_code=303)
+    if request.session.get("machine") != machine.upper():
+        return HTMLResponse("Brak dostępu do tej maszyny dla obecnego drukarza", status_code=403)
+    date_q = report_date or local_today().strftime("%Y-%m-%d")
+    cur = conn.cursor()
+    outgoing_shift_id, incoming_shift_id, shift_norm, incoming_shift = _resolve_shift_ids(cur, shift)
+    completed_jobs, issues = _load_handover_snapshot(cur, machine, date_q, shift_norm)
+    existing_handover = None
+    existing_items = []
+    if outgoing_shift_id and incoming_shift_id:
+        cur.execute(
+            """
+            SELECT * FROM shift_handovers
+            WHERE handover_date=? AND machine=? AND outgoing_shift_id=? AND incoming_shift_id=?
+            ORDER BY id DESC LIMIT 1
+            """,
+            (date_q, machine.upper(), outgoing_shift_id, incoming_shift_id),
+        )
+        row = cur.fetchone()
+        if row:
+            existing_handover = dict(row)
+            cur.execute(
+                "SELECT * FROM shift_handover_items WHERE handover_id=? ORDER BY item_type, sort_order, id",
+                (existing_handover["id"],),
+            )
+            existing_items = [dict(item) for item in cur.fetchall()]
+    return render_template("drukarz_przekazanie_zmiany.html", {
+        "machine": machine.upper(),
+        "user": {"username": user["username"], "role": user["role"]},
+        "date_q": date_q,
+        "shift": shift_norm,
+        "incoming_shift": incoming_shift,
+        "completed_jobs": completed_jobs,
+        "issues": issues,
+        "existing_handover": existing_handover,
+        "existing_items": existing_items,
+        "success": success,
+    })
+
+
+@router.get("/maszyna/{machine}/przekazanie-zmiany/odbior")
+def maszyna_odbior_przekazania_zmiany(
+    machine: str,
+    request: Request,
+    handover_id: int = Query(0),
+    success: str = Query(""),
+    user=Depends(require_auth),
+    conn=Depends(get_db),
+):
+    if user["role"] != "drukarz":
+        return RedirectResponse("/dashboard", status_code=303)
+    if request.session.get("machine") != machine.upper():
+        return HTMLResponse("Brak dostępu do tej maszyny dla obecnego drukarza", status_code=403)
+    cur = conn.cursor()
+    handover = None
+    if handover_id:
+        cur.execute(
+            """
+            SELECT sh.*, incoming.name AS incoming_shift_name, outgoing.name AS outgoing_shift_name
+            FROM shift_handovers sh
+            JOIN shifts incoming ON incoming.id = sh.incoming_shift_id
+            JOIN shifts outgoing ON outgoing.id = sh.outgoing_shift_id
+            WHERE sh.id=? AND sh.machine=?
+            """,
+            (handover_id, machine.upper()),
+        )
+        row = cur.fetchone()
+        if row:
+            handover = dict(row)
+    if not handover:
+        handover = find_pending_machine_handover(cur, machine)
+    if not handover or handover["status"] != "waiting_ack":
+        return RedirectResponse(f"/maszyna/{machine.lower()}/plany", status_code=303)
+    cur.execute(
+        "SELECT * FROM shift_handover_items WHERE handover_id=? ORDER BY item_type, sort_order, id",
+        (handover["id"],),
+    )
+    items = [dict(row) for row in cur.fetchall()]
+    completed_items = [item for item in items if item["item_type"] == "completed_job"]
+    issue_items = [item for item in items if item["item_type"] == "issue"]
+    return render_template("drukarz_odbior_przekazania.html", {
+        "machine": machine.upper(),
+        "user": {"username": user["username"], "role": user["role"]},
+        "handover": handover,
+        "completed_items": completed_items,
+        "issue_items": issue_items,
+        "success": success,
+    })
+
+
+@router.post("/maszyna/{machine}/przekazanie-zmiany/odbior")
+def maszyna_potwierdz_odbior_przekazania(
+    machine: str,
+    request: Request,
+    handover_id: int = Form(...),
+    acknowledgement_note: str = Form(""),
+    user=Depends(require_auth),
+    conn=Depends(get_db),
+):
+    if user["role"] != "drukarz":
+        return RedirectResponse("/dashboard", status_code=303)
+    if request.session.get("machine") != machine.upper():
+        return HTMLResponse("Brak dostępu do tej maszyny dla obecnego drukarza", status_code=403)
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM shift_handovers WHERE id=? AND machine=?", (handover_id, machine.upper()))
+    handover = cur.fetchone()
+    if not handover or handover["status"] != "waiting_ack":
+        return RedirectResponse(f"/maszyna/{machine.lower()}/plany", status_code=303)
+    cur.execute(
+        "UPDATE shift_handovers SET status='acknowledged', acknowledged_by=?, acknowledged_at=CURRENT_TIMESTAMP, acknowledgement_note=? WHERE id=?",
+        (user["username"], acknowledgement_note.strip(), handover_id),
+    )
+    log_production_operation(
+        cur,
+        "odbior_przekazania_zmiany",
+        f"Przejęcie zmiany na {machine.upper()} dla przekazania #{handover_id}",
+        machine.upper(),
+        None,
+        user["username"],
+    )
+    log_domain_event(cur, "SHIFT_HANDOVER_ACKNOWLEDGED", user["username"], machine.upper(), None, None, str(handover_id))
+    conn.commit()
+    return RedirectResponse(f"/maszyna/{machine.lower()}/plany?success=przejecie_zmiany", status_code=303)
+
+
+@router.post("/maszyna/{machine}/przekazanie-zmiany")
+def maszyna_zapisz_przekazanie_zmiany(
+    machine: str,
+    request: Request,
+    report_date: str = Form(...),
+    shift: str = Form(...),
+    summary_comment: str = Form(""),
+    user=Depends(require_auth),
+    conn=Depends(get_db),
+):
+    if user["role"] != "drukarz":
+        return RedirectResponse("/dashboard", status_code=303)
+    if request.session.get("machine") != machine.upper():
+        return HTMLResponse("Brak dostępu do tej maszyny dla obecnego drukarza", status_code=403)
+    cur = conn.cursor()
+    outgoing_shift_id, incoming_shift_id, shift_norm, _incoming_shift = _resolve_shift_ids(cur, shift)
+    if not outgoing_shift_id or not incoming_shift_id:
+        return RedirectResponse(
+            f"/maszyna/{machine.lower()}/przekazanie-zmiany?date={report_date}&shift={shift_norm}",
+            status_code=303,
+        )
+    completed_jobs, issues = _load_handover_snapshot(cur, machine, report_date, shift_norm)
+    cur.execute(
+        """
+        SELECT id FROM shift_handovers
+        WHERE handover_date=? AND machine=? AND outgoing_shift_id=? AND incoming_shift_id=?
+        ORDER BY id DESC LIMIT 1
+        """,
+        (report_date, machine.upper(), outgoing_shift_id, incoming_shift_id),
+    )
+    existing = cur.fetchone()
+    if existing:
+        handover_id = existing["id"]
+        cur.execute(
+            "UPDATE shift_handovers SET created_by=?, summary_comment=?, status='waiting_ack', acknowledged_by=NULL, acknowledged_at=NULL, acknowledgement_note=NULL WHERE id=?",
+            (user["username"], summary_comment.strip(), handover_id),
+        )
+        cur.execute("DELETE FROM shift_handover_items WHERE handover_id=?", (handover_id,))
+    else:
+        cur.execute(
+            """
+            INSERT INTO shift_handovers (handover_date, machine, outgoing_shift_id, incoming_shift_id, created_by, summary_comment)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (report_date, machine.upper(), outgoing_shift_id, incoming_shift_id, user["username"], summary_comment.strip()),
+        )
+        handover_id = cur.lastrowid
+
+    for index, job in enumerate(completed_jobs, start=1):
+        title = f"Zakończone zlecenie: {job['job_number']}"
+        details = f"Ilość: {job['quantity'] or 0}, OK: {job['ok_quantity'] or 0}, NOK: {job['nok_quantity'] or 0}"
+        cur.execute(
+            """
+            INSERT INTO shift_handover_items
+            (handover_id, item_type, plan_id, job_number, machine, lub_number, title, details, status, sort_order)
+            VALUES (?, 'completed_job', ?, ?, ?, ?, ?, ?, 'done', ?)
+            """,
+            (handover_id, job.get("plan_id"), job.get("job_number"), machine.upper(), job.get("lub_number"), title, details, index),
+        )
+
+    for index, issue in enumerate(issues, start=1):
+        title = f"Problem: {issue['label']}"
+        details = issue.get("short_note") or f"Zlecenie: {issue.get('job_number') or 'n/d'}"
+        cur.execute(
+            """
+            INSERT INTO shift_handover_items
+            (handover_id, item_type, target_role, production_report_issue_id, plan_id, job_number, machine, title, details, status, sort_order)
+            VALUES (?, 'issue', ?, ?, ?, ?, ?, ?, ?, 'open', ?)
+            """,
+            (handover_id, issue.get("target_role"), issue.get("id"), issue.get("plan_id"), issue.get("job_number"), machine.upper(), title, details, index),
+        )
+
+    log_production_operation(
+        cur,
+        "przekazanie_zmiany",
+        f"Przekazanie zmiany dla {machine.upper()} ({shift_norm}) — zlecenia: {len(completed_jobs)}, problemy: {len(issues)}",
+        machine.upper(),
+        None,
+        user["username"],
+    )
+    log_domain_event(cur, "SHIFT_HANDOVER_CREATED", user["username"], machine.upper(), None, None, f"{report_date}:{shift_norm}")
+    conn.commit()
+    return RedirectResponse(
+        f"/maszyna/{machine.lower()}/przekazanie-zmiany?date={report_date}&shift={shift_norm}&success=1",
+        status_code=303,
+    )
 
 
 @router.post("/maszyna/{machine}/plan/{plan_id}/potwierdz-asortyment")
@@ -289,11 +683,16 @@ def maszyna_job(
         farby = cur.fetchall()
         cur.execute("SELECT * FROM polymers WHERE lub=?", (plan["lub_number"],))
         polimery = cur.fetchall()
+    cur.execute(
+        "SELECT code, label FROM problem_categories WHERE is_active=1 ORDER BY sort_order, label"
+    )
+    problem_categories = cur.fetchall()
     return render_template("maszyna_job.html", {
         "machine": machine.upper(),
         "plan": plan,
         "farby": farby,
         "polimery": polimery,
+        "problem_categories": problem_categories,
         "user": {"username": user["username"], "role": user["role"]},
         "status": status,
         "message": message,
@@ -504,6 +903,8 @@ def submit_report(
     job_number: str = Form(...),
     status: str = Form(...),
     notes: str = Form(""),
+    problem_categories: list[str] = Form([]),
+    problem_short_note: str = Form(""),
     ok_quantity: int = Form(0),
     nok_quantity: int = Form(0),
     quantity: int = Form(0),
@@ -535,6 +936,36 @@ def submit_report(
             "INSERT INTO production_reports (machine, date, shift, job_number, start_time, end_time, quantity, ok_quantity, nok_quantity, notes, created_by, plan_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (machine.upper(), dpart, shift_norm, job_number, tpart, tpart, quantity, ok_quantity, nok_quantity, notes, user["username"], plan_id),
         )
+        report_id = cur.lastrowid
+        selected_problem_codes = [code for code in problem_categories if code]
+        if report_id and selected_problem_codes:
+            cur.execute(
+                "SELECT id, code FROM problem_categories WHERE is_active=1"
+            )
+            category_map = {row["code"]: row["id"] for row in cur.fetchall()}
+            issue_note = problem_short_note.strip()
+            issue_rows = []
+            for code in selected_problem_codes:
+                category_id = category_map.get(code)
+                if category_id is None:
+                    continue
+                issue_rows.append((
+                    report_id,
+                    category_id,
+                    machine.upper(),
+                    plan_id,
+                    user["username"],
+                    issue_note,
+                ))
+            for row in issue_rows:
+                cur.execute(
+                    """
+                    INSERT INTO production_report_issues
+                    (production_report_id, problem_category_id, machine, plan_id, reported_by, short_note)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    row,
+                )
         log_production_operation(cur, "raport_produkcji", f"Raport produkcji: {job_number} qty {quantity} OK {ok_quantity} NOK {nok_quantity}", machine.upper(), plan_id, user["username"])
         log_domain_event(cur, "RAPORT_PRODUKCJI_ZAPISANY", user["username"], machine.upper(), plan_id, lub)
         insert_notification_if_enabled(

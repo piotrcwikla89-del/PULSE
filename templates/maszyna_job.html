@@ -236,6 +236,22 @@
               </div>
             </div>
           </div>
+          <div class="mb-3" id="productionIssueFields" style="display:none;">
+            <label class="form-label">Ogólna przyczyna problemów</label>
+            <div class="border rounded p-3 bg-light">
+              {% for category in problem_categories %}
+              <div class="form-check">
+                <input class="form-check-input production-issue-checkbox" type="checkbox" name="problem_categories" value="{{ category.code }}" id="problem-{{ category.code }}">
+                <label class="form-check-label" for="problem-{{ category.code }}">{{ category.label }}</label>
+              </div>
+              {% endfor %}
+              <div class="form-text">Zaznacz tylko wtedy, gdy w zleceniu rzeczywiście wystąpił problem.</div>
+            </div>
+          </div>
+          <div class="mb-3" id="productionIssueNoteField" style="display:none;">
+            <label class="form-label">Krótki opis problemu</label>
+            <input type="text" class="form-control" name="problem_short_note" maxlength="255" placeholder="Opcjonalnie: krótka informacja dla kolejnej roli lub kierownika">
+          </div>
           <div class="mb-3">
             <label class="form-label">Status kontroli</label>
             <select class="form-select" name="status">
@@ -267,6 +283,14 @@
       document.getElementById('reportTypeLabel').value = title;
       document.getElementById('productionFields').style.display = (type === 'production') ? 'block' : 'none';
       document.getElementById('productionQualityFields').style.display = (type === 'production') ? 'block' : 'none';
+      document.getElementById('productionIssueFields').style.display = (type === 'production') ? 'block' : 'none';
+      document.getElementById('productionIssueNoteField').style.display = (type === 'production') ? 'block' : 'none';
+      if (type !== 'production') {
+        document.querySelectorAll('.production-issue-checkbox').forEach(function (checkbox) {
+          checkbox.checked = false;
+        });
+        document.querySelector('input[name="problem_short_note"]').value = '';
+      }
       const d = new Date();
       const localISO = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0,16);
       document.querySelector('input[name="report_date"]').value = localISO;

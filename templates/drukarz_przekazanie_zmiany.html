@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Przekazanie zmiany - {{ machine }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body class="bg-light">
+<div class="container mt-4 mb-5">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+        <h1 class="h3"><i class="fas fa-people-arrows-left-right"></i> Przekazanie zmiany - {{ machine }}</h1>
+        <div>
+            <a href="/maszyna/{{ machine|lower }}/plany" class="btn btn-outline-primary btn-sm"><i class="fas fa-arrow-left"></i> Plany dzienne</a>
+            <a href="/logout" class="btn btn-outline-danger btn-sm"><i class="fas fa-sign-out-alt"></i> Wyloguj</a>
+        </div>
+    </div>
+
+    {% if success %}
+    <div class="alert alert-success">Raport przekazania zmiany został zapisany.</div>
+    {% endif %}
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <form method="get" action="/maszyna/{{ machine|lower }}/przekazanie-zmiany" class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label">Data</label>
+                    <input type="date" class="form-control" name="date" value="{{ date_q }}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Zmiana zdająca</label>
+                    <select class="form-select" name="shift">
+                        <option value="dzien" {% if shift == 'dzien' %}selected{% endif %}>Dzień</option>
+                        <option value="noc" {% if shift == 'noc' %}selected{% endif %}>Noc</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <div class="form-text mt-0 mb-2">Zmiana przejmująca: <strong>{% if incoming_shift == 'noc' %}Noc{% else %}Dzień{% endif %}</strong></div>
+                </div>
+                <div class="col-md-3">
+                    <button type="submit" class="btn btn-outline-secondary w-100">Odśwież dane</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <form method="post" action="/maszyna/{{ machine|lower }}/przekazanie-zmiany">
+        <input type="hidden" name="report_date" value="{{ date_q }}">
+        <input type="hidden" name="shift" value="{{ shift }}">
+
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">Zakończone zlecenia na zmianie</h5>
+            </div>
+            <div class="card-body">
+                {% if completed_jobs %}
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead class="table-light">
+                            <tr><th>Zlecenie</th><th>LUB</th><th>Nazwa</th><th>Ilość</th><th>OK</th><th>NOK</th><th>Ostatni raport</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for job in completed_jobs %}
+                            <tr>
+                                <td>{{ job.job_number }}</td>
+                                <td>{{ job.lub_number or '—' }}</td>
+                                <td>{{ job.order_name or '—' }}</td>
+                                <td>{{ job.quantity or 0 }}</td>
+                                <td>{{ job.ok_quantity or 0 }}</td>
+                                <td>{{ job.nok_quantity or 0 }}</td>
+                                <td><small>{{ job.last_report_at|localdatetime }}</small></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted mb-0">Brak zakończonych zleceń dla wybranej daty i zmiany.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">Nierozwiązane problemy do przekazania</h5>
+            </div>
+            <div class="card-body">
+                {% if issues %}
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead class="table-light">
+                            <tr><th>Kategoria</th><th>Zlecenie</th><th>Do roli</th><th>Opis</th><th>Czas</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for issue in issues %}
+                            <tr>
+                                <td><span class="badge bg-warning text-dark">{{ issue.label }}</span></td>
+                                <td>{{ issue.job_number or '—' }}</td>
+                                <td>{{ issue.target_role }}</td>
+                                <td>{{ issue.short_note or '—' }}</td>
+                                <td><small>{{ issue.created_at|localdatetime }}</small></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted mb-0">Brak nierozwiązanych problemów dla wybranej daty i zmiany.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">Komentarz do przekazania</h5>
+            </div>
+            <div class="card-body">
+                <textarea class="form-control" name="summary_comment" rows="4" placeholder="Podsumowanie zmiany, informacje dla zmiennika, priorytety na start...">{{ existing_handover.summary_comment if existing_handover else '' }}</textarea>
+            </div>
+        </div>
+
+        <div class="d-flex justify-content-end">
+            <button type="submit" class="btn btn-dark">
+                <i class="fas fa-paper-plane"></i> Zapisz przekazanie zmiany
+            </button>
+        </div>
+    </form>
+
+    {% if existing_handover %}
+    <div class="card shadow-sm mt-4">
+        <div class="card-header bg-white">
+            <h5 class="mb-0">Ostatnio zapisane przekazanie</h5>
+        </div>
+        <div class="card-body">
+            <p class="mb-2"><strong>Autor:</strong> {{ existing_handover.created_by }} | <strong>Status:</strong> {{ existing_handover.status }}</p>
+            {% if existing_handover.acknowledged_by %}
+            <p class="mb-2"><strong>Przejął:</strong> {{ existing_handover.acknowledged_by }}{% if existing_handover.acknowledged_at %} | <strong>Czas:</strong> {{ existing_handover.acknowledged_at|localdatetime }}{% endif %}</p>
+            {% endif %}
+            {% if existing_handover.summary_comment %}
+            <p><strong>Komentarz:</strong> {{ existing_handover.summary_comment }}</p>
+            {% endif %}
+            {% if existing_handover.acknowledgement_note %}
+            <p><strong>Notatka przejęcia:</strong> {{ existing_handover.acknowledgement_note }}</p>
+            {% endif %}
+            {% if existing_items %}
+            <ul class="list-group list-group-flush">
+                {% for item in existing_items %}
+                <li class="list-group-item px-0">
+                    <strong>{{ item.title }}</strong>
+                    {% if item.target_role %}<small class="text-muted"> → {{ item.target_role }}</small>{% endif %}
+                    {% if item.details %}<br><small>{{ item.details }}</small>{% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+{% include '_notification_poll.html' %}
+</body>
+</html>

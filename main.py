@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
 from db_compat import get_db as _get_db_raw, is_postgres
-from helpers import get_base_path, seed_notification_settings_rows
+from helpers import get_base_path, seed_notification_settings_rows, seed_problem_categories
 
 # ==================== APLIKACJA ====================
 app = FastAPI()
@@ -94,6 +94,79 @@ def migrate_schema(cur):
             UNIQUE(farba_id, lub_number)
         )
     """)
+    execute(cur, """
+        CREATE TABLE IF NOT EXISTS problem_categories (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            code TEXT NOT NULL UNIQUE,
+            label TEXT NOT NULL,
+            target_role TEXT NOT NULL,
+            visible_for_manager INTEGER NOT NULL DEFAULT 1,
+            is_active INTEGER NOT NULL DEFAULT 1,
+            sort_order INTEGER NOT NULL DEFAULT 0
+        )
+    """)
+    execute(cur, """
+        CREATE TABLE IF NOT EXISTS production_report_issues (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            production_report_id INTEGER NOT NULL,
+            problem_category_id INTEGER NOT NULL,
+            machine TEXT NOT NULL,
+            plan_id INTEGER,
+            reported_by TEXT NOT NULL,
+            issue_scope TEXT NOT NULL DEFAULT 'job',
+            short_note TEXT,
+            is_blocking INTEGER NOT NULL DEFAULT 0,
+            needs_handover INTEGER NOT NULL DEFAULT 1,
+            status TEXT NOT NULL DEFAULT 'new',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            resolved_at TIMESTAMP,
+            resolved_by TEXT,
+            resolution_note TEXT,
+            FOREIGN KEY (production_report_id) REFERENCES production_reports(id) ON DELETE CASCADE,
+            FOREIGN KEY (problem_category_id) REFERENCES problem_categories(id),
+            FOREIGN KEY (plan_id) REFERENCES production_plans(id)
+        )
+    """)
+    execute(cur, """
+        CREATE TABLE IF NOT EXISTS shift_handovers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            handover_date DATE NOT NULL,
+            machine TEXT NOT NULL,
+            outgoing_shift_id INTEGER NOT NULL,
+            incoming_shift_id INTEGER NOT NULL,
+            created_by TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            summary_comment TEXT,
+            status TEXT NOT NULL DEFAULT 'waiting_ack',
+            acknowledged_by TEXT,
+            acknowledged_at TIMESTAMP,
+            acknowledgement_note TEXT,
+            UNIQUE(handover_date, machine, outgoing_shift_id, incoming_shift_id),
+            FOREIGN KEY (outgoing_shift_id) REFERENCES shifts(id),
+            FOREIGN KEY (incoming_shift_id) REFERENCES shifts(id)
+        )
+    """)
+    execute(cur, """
+        CREATE TABLE IF NOT EXISTS shift_handover_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            handover_id INTEGER NOT NULL,
+            item_type TEXT NOT NULL,
+            target_role TEXT,
+            production_report_issue_id INTEGER,
+            plan_id INTEGER,
+            job_number TEXT,
+            machine TEXT,
+            lub_number TEXT,
+            title TEXT NOT NULL,
+            details TEXT,
+            status TEXT NOT NULL DEFAULT 'open',
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (handover_id) REFERENCES shift_handovers(id) ON DELETE CASCADE,
+            FOREIGN KEY (production_report_issue_id) REFERENCES production_report_issues(id),
+            FOREIGN KEY (plan_id) REFERENCES production_plans(id)
+        )
+    """)
 
 
 def init_db():
@@ -105,6 +178,7 @@ def init_db():
         init_postgres_schema(cur)
         migrate_schema(cur)
         seed_notification_settings_rows(cur)
+        seed_problem_categories(cur)
         seed_default_users_postgres(cur)
         execute(cur, "SELECT COUNT(*) FROM shifts")
         if cur.fetchone()[0] == 0:
@@ -307,6 +381,7 @@ def init_db():
 
     migrate_schema(cur)
     seed_notification_settings_rows(cur)
+    seed_problem_categories(cur)
 
     execute(cur, "SELECT 1 FROM users WHERE username=?", ("admin",))
     if not cur.fetchone():
