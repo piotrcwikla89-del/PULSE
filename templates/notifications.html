@@ -19,7 +19,7 @@
             <ul class="list-group" id="notificationsList">
                 {% for n in notifications %}
                 <li class="list-group-item{% if not n.is_read %} list-group-item-warning{% endif %}" data-id="{{ n.id }}">
-                    <strong>{{ n.created_at }}</strong> — {{ n.message }} <br>
+                    <strong>{{ n.created_at|localdatetime }}</strong> — {{ n.message }} <br>
                     <small>Maszyna: {{ n.machine or 'n/d' }} | Zlecenie: {{ n.plan_order_number or n.plan_id or 'n/d' }} | LUB: {{ n.plan_lub_number or '—' }} | Adresat: {{ n.target_role }}{{ ' / ' + n.target_user if n.target_user }}</small>
                     {% if not n.is_read %}
                     <button class="btn btn-sm btn-success float-end mark-read" data-id="{{ n.id }}">Oznacz jako przeczytane</button>

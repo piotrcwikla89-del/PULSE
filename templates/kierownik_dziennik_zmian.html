@@ -51,7 +51,7 @@
                     <div class="d-flex justify-content-between align-items-start">
                         <div class="flex-grow-1">
                             <div class="operation-time">
-                                <i class="fas fa-clock"></i> {{ op.created_at }}
+                                <i class="fas fa-clock"></i> {{ op.created_at|localdatetime }}
                                 {% if op.machine %}
                                 <span class="badge bg-info ms-2">{{ op.machine }}</span>
                                 {% endif %}

@@ -37,7 +37,7 @@
             <tbody>
                 {% for r in print_reports %}
                 <tr>
-                    <td><small>{{ r.created_at }}</small></td>
+                    <td><small>{{ r.created_at|localdatetime }}</small></td>
                     <td>{{ r.machine }}</td>
                     <td>{{ r.job_number }}{% if r.plan_id %} <small class="text-muted">#{{ r.plan_id }}</small>{% endif %}</td>
                     <td><span class="badge {% if r.status == 'OK' %}bg-success{% else %}bg-danger{% endif %}">{{ r.status }}</span></td>
@@ -60,7 +60,7 @@
             <tbody>
                 {% for r in production_reports %}
                 <tr>
-                    <td><small>{{ r.created_at }}</small></td>
+                    <td><small>{{ r.created_at|localdatetime }}</small></td>
                     <td>{{ r.machine }}</td>
                     <td>{{ r.shift }}</td>
                     <td>{{ r.job_number }}{% if r.plan_id %} <small class="text-muted">#{{ r.plan_id }}</small>{% endif %}</td>

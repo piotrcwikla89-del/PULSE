@@ -1,8 +1,6 @@
 """
 Router: przewijarki P1 i P2 — widoki, plany, raporty przewijania.
 """
-from datetime import date
-
 from fastapi import APIRouter, Depends, Form, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
 from starlette.requests import Request
@@ -15,6 +13,7 @@ from helpers import (
     log_production_operation,
     render_template,
 )
+from time_utils import local_today
 
 router = APIRouter()
 
@@ -112,7 +111,7 @@ def przewijarka_job(
         "user": {"username": user["username"], "role": user["role"]},
         "status": status,
         "message": message,
-        "today": date.today().isoformat(),
+        "today": local_today().isoformat(),
     })
 
 

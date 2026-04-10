@@ -3,7 +3,7 @@ Router: magazyn farb — widok główny, akcje na farbach, historia, statystyki,
 """
 import csv
 import io
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from fastapi import APIRouter, Depends, Form, Query
 from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
@@ -19,6 +19,7 @@ from helpers import (
     log_production_operation,
     render_template,
 )
+from time_utils import local_date_str, local_now
 
 router = APIRouter()
 
@@ -440,8 +441,9 @@ def raport_utylizacji(
             ORDER BY data DESC
         """, (od, do))
     else:
-        do_dom = datetime.now().strftime("%Y-%m-%d")
-        od_dom = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+        now_local = local_now()
+        do_dom = local_date_str(now_local)
+        od_dom = local_date_str(now_local - timedelta(days=30))
         cur.execute("""
             SELECT farba, ilosc, data, uwagi
             FROM operacje
@@ -474,8 +476,9 @@ def export_raport_utylizacji(
             ORDER BY data DESC
         """, (od, do))
     else:
-        do_dom = datetime.now().strftime("%Y-%m-%d")
-        od_dom = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+        now_local = local_now()
+        do_dom = local_date_str(now_local)
+        od_dom = local_date_str(now_local - timedelta(days=30))
         cur.execute("""
             SELECT data, farba, ilosc, uwagi
             FROM operacje

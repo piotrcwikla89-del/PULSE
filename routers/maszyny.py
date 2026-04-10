@@ -3,7 +3,6 @@ Router: maszyny produkcyjne — widoki, plany, zlecenia, raporty, akcje operator
 """
 import csv
 import io
-from datetime import date
 
 from fastapi import APIRouter, Depends, Form, Query
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
@@ -21,6 +20,7 @@ from helpers import (
     render_template,
     resolve_plan_id_for_job,
 )
+from time_utils import local_date_str, local_day_bounds_utc, local_time_str, local_today
 
 router = APIRouter()
 
@@ -517,7 +517,7 @@ def submit_report(
     plan_row = cur.fetchone()
     lub = plan_row["lub_number"] if plan_row else None
     dpart = (report_date.split("T")[0] if "T" in report_date else report_date)[:10]
-    tpart = report_date.split("T")[1][:8] if "T" in report_date else __import__("datetime").datetime.now().strftime("%H:%M:%S")
+    tpart = report_date.split("T")[1][:8] if "T" in report_date else local_time_str()
     shift_norm = normalize_shift_label(shift)
     if report_type == "print_control":
         cur.execute(
@@ -575,9 +575,10 @@ def export_plany_csv(machine: str, user=Depends(require_auth), conn=Depends(get_
 @router.get("/maszyna/{machine}/raport-zadruku")
 def maszyna_raport_zadruku(machine: str, request: Request, user=Depends(require_auth), conn=Depends(get_db)):
     cur = conn.cursor()
+    start_utc, end_utc = local_day_bounds_utc()
     cur.execute(
-        "SELECT * FROM print_control_reports WHERE machine=? AND date(created_at)=date('now') ORDER BY created_at DESC LIMIT 20",
-        (machine.upper(),),
+        "SELECT * FROM print_control_reports WHERE machine=? AND created_at >= ? AND created_at < ? ORDER BY created_at DESC LIMIT 20",
+        (machine.upper(), start_utc, end_utc),
     )
     reports = cur.fetchall()
     return render_template("maszyna_raport_zadruku.html", {
@@ -600,8 +601,8 @@ def maszyna_dodaj_raport_zadruku(
     cur = conn.cursor()
     plan_id = resolve_plan_id_for_job(cur, machine, job_number)
     cur.execute(
-        "INSERT INTO print_control_reports (machine, date, time, job_number, status, notes, created_by, plan_id) VALUES (?, date('now'), time('now'), ?, ?, ?, ?, ?)",
-        (machine.upper(), job_number, status, notes, user["username"], plan_id),
+        "INSERT INTO print_control_reports (machine, date, time, job_number, status, notes, created_by, plan_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (machine.upper(), local_date_str(), local_time_str(), job_number, status, notes, user["username"], plan_id),
     )
     log_production_operation(cur, "raport_zadruku", f"[Panel maszyny] {job_number} [{status}]", machine.upper(), plan_id, user["username"])
     log_domain_event(cur, "RAPORT_ZADRUKU_ZAPISANY", user["username"], machine.upper(), plan_id, None)
@@ -613,16 +614,17 @@ def maszyna_dodaj_raport_zadruku(
     if is_ajax(request):
         return JSONResponse({"success": True, "message": "Raport zadruku dodany"})
     if user["role"] in ("manager", "admin"):
-        return RedirectResponse(f"/kierownik/rejestr-raportow?date={date.today().strftime('%Y-%m-%d')}", status_code=303)
+        return RedirectResponse(f"/kierownik/rejestr-raportow?date={local_today().strftime('%Y-%m-%d')}", status_code=303)
     return RedirectResponse(f"/maszyna/{machine}/raport-zadruku?success=dodano", status_code=303)
 
 
 @router.get("/maszyna/{machine}/raport-produkcji")
 def maszyna_raport_produkcji(machine: str, request: Request, user=Depends(require_auth), conn=Depends(get_db)):
     cur = conn.cursor()
+    start_utc, end_utc = local_day_bounds_utc()
     cur.execute(
-        "SELECT * FROM production_reports WHERE machine=? AND date(created_at)=date('now') ORDER BY created_at DESC LIMIT 20",
-        (machine.upper(),),
+        "SELECT * FROM production_reports WHERE machine=? AND created_at >= ? AND created_at < ? ORDER BY created_at DESC LIMIT 20",
+        (machine.upper(), start_utc, end_utc),
     )
     reports = cur.fetchall()
     return render_template("maszyna_raport_produkcji.html", {
@@ -646,9 +648,10 @@ def maszyna_dodaj_raport_produkcji(
 ):
     cur = conn.cursor()
     plan_id = resolve_plan_id_for_job(cur, machine, job_number)
+    current_time = local_time_str()
     cur.execute(
-        "INSERT INTO production_reports (machine, date, shift, job_number, start_time, end_time, quantity, ok_quantity, nok_quantity, notes, created_by, plan_id) VALUES (?, date('now'), 'dzien', ?, time('now'), time('now'), ?, ?, ?, ?, ?, ?)",
-        (machine.upper(), job_number, quantity, ok_quantity, nok_quantity, notes, user["username"], plan_id),
+        "INSERT INTO production_reports (machine, date, shift, job_number, start_time, end_time, quantity, ok_quantity, nok_quantity, notes, created_by, plan_id) VALUES (?, ?, 'dzien', ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (machine.upper(), local_date_str(), job_number, current_time, current_time, quantity, ok_quantity, nok_quantity, notes, user["username"], plan_id),
     )
     log_production_operation(cur, "raport_produkcji", f"[Panel maszyny] {job_number} qty {quantity} OK {ok_quantity} NOK {nok_quantity}", machine.upper(), plan_id, user["username"])
     log_domain_event(cur, "RAPORT_PRODUKCJI_ZAPISANY", user["username"], machine.upper(), plan_id, None)
@@ -660,7 +663,7 @@ def maszyna_dodaj_raport_produkcji(
     if is_ajax(request):
         return JSONResponse({"success": True, "message": "Raport produkcji dodany"})
     if user["role"] in ("manager", "admin"):
-        return RedirectResponse(f"/kierownik/rejestr-raportow?date={date.today().strftime('%Y-%m-%d')}", status_code=303)
+        return RedirectResponse(f"/kierownik/rejestr-raportow?date={local_today().strftime('%Y-%m-%d')}", status_code=303)
     return RedirectResponse(f"/maszyna/{machine}/raport-produkcji?success=dodano", status_code=303)
 
 

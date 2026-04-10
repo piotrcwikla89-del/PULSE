@@ -1,13 +1,12 @@
 """
 Router: panel kierownika — raporty, statystyki, dziennik zmian.
 """
-from datetime import date
-
 from fastapi import APIRouter, Depends, Query
 from starlette.requests import Request
 
 from dependencies import get_db, require_manager_or_admin
 from helpers import normalize_shift_label, render_template
+from time_utils import local_day_bounds_utc, local_today, utc_threshold_db_string
 
 router = APIRouter(prefix="/kierownik")
 
@@ -27,7 +26,7 @@ def kierownik_rejestr_raportow(
     conn=Depends(get_db),
 ):
     if not date_q:
-        date_q = date.today().strftime("%Y-%m-%d")
+        date_q = local_today().strftime("%Y-%m-%d")
     cur = conn.cursor()
     cur.execute(
         "SELECT * FROM print_control_reports WHERE date=? ORDER BY machine, created_at DESC",
@@ -56,7 +55,7 @@ def kierownik_raport_zmiany(
     conn=Depends(get_db),
 ):
     if not date_q:
-        date_q = date.today().strftime("%Y-%m-%d")
+        date_q = local_today().strftime("%Y-%m-%d")
     zm = normalize_shift_label(zmiana)
     cur = conn.cursor()
     cur.execute("SELECT * FROM print_control_reports WHERE date=? ORDER BY machine, created_at", (date_q,))
@@ -94,12 +93,13 @@ def kierownik_raport_zmiany(
 @router.get("/raport-dziennie")
 def kierownik_raport_dziennie(request: Request, user=Depends(require_manager_or_admin), conn=Depends(get_db)):
     cur = conn.cursor()
+    start_utc, end_utc = local_day_bounds_utc()
     cur.execute("""
         SELECT machine, SUM(quantity) as total_qty, SUM(ok_quantity) as ok_qty, SUM(nok_quantity) as nok_qty
         FROM production_reports
-        WHERE date(created_at)=date('now')
+        WHERE created_at >= ? AND created_at < ?
         GROUP BY machine
-    """)
+    """, (start_utc, end_utc))
     production = cur.fetchall()
     return render_template("kierownik_raport_dziennie.html", {
         "production": production,
@@ -117,6 +117,7 @@ def kierownik_statystyki_zmian(request: Request, user=Depends(require_manager_or
 @router.get("/raport-jakosci")
 def kierownik_raport_jakosci(request: Request, user=Depends(require_manager_or_admin), conn=Depends(get_db)):
     cur = conn.cursor()
+    start_utc, end_utc = local_day_bounds_utc()
     cur.execute("""
         SELECT
             machine,
@@ -125,15 +126,15 @@ def kierownik_raport_jakosci(request: Request, user=Depends(require_manager_or_a
             SUM(CASE WHEN status='NOT_OK' THEN 1 ELSE 0 END) as not_ok_count,
             ROUND(100.0 * SUM(CASE WHEN status='OK' THEN 1 ELSE 0 END) / COUNT(*), 2) as quality_score
         FROM print_control_reports
-        WHERE date(created_at)=date('now')
+        WHERE created_at >= ? AND created_at < ?
         GROUP BY machine
-    """)
+    """, (start_utc, end_utc))
     quality = cur.fetchall()
     cur.execute("""
         SELECT * FROM print_control_reports
-        WHERE date(created_at)=date('now')
+        WHERE created_at >= ? AND created_at < ?
         ORDER BY machine, created_at DESC
-    """)
+    """, (start_utc, end_utc))
     reports = cur.fetchall()
     return render_template("kierownik_raport_jakosci.html", {
         "quality": quality,
@@ -149,9 +150,9 @@ def kierownik_dziennik_zmian(request: Request, user=Depends(require_manager_or_a
         SELECT pl.*, p.order_number, p.machine
         FROM production_log pl
         LEFT JOIN production_plans p ON pl.plan_id = p.id
-        WHERE pl.created_at >= datetime('now', '-7 days')
+        WHERE pl.created_at >= ?
         ORDER BY pl.created_at DESC
-    """)
+    """, (utc_threshold_db_string(days=7),))
     operations = cur.fetchall()
     return render_template("kierownik_dziennik_zmian.html", {
         "operations": operations,

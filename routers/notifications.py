@@ -9,12 +9,16 @@ from starlette.requests import Request
 
 from dependencies import get_db, require_auth
 from helpers import render_template
+from time_utils import format_local_datetime
 
 
 def _row_to_dict(row) -> dict:
     """Konwertuje wiersz bazy (sqlite3.Row lub psycopg2.DictRow) do JSON-bezpiecznego dict."""
     d = dict(row)
     for k, v in d.items():
+        if k == "created_at":
+            d[k] = format_local_datetime(v)
+            continue
         if isinstance(v, (datetime, date, dt_time)):
             d[k] = v.isoformat()
     return d

@@ -14,6 +14,7 @@ from jinja2 import Environment, FileSystemLoader
 from starlette.requests import Request
 
 from db_compat import is_postgres
+from time_utils import format_local_datetime, local_datetime_str, local_today, utc_now_db_string
 
 # ==================== ŚCIEŻKI ====================
 
@@ -53,6 +54,7 @@ def init_jinja_env() -> None:
             autoescape=True,
             cache_size=0,
         )
+        env.filters["localdatetime"] = format_local_datetime
 
 
 def render_template(name: str, context: dict) -> HTMLResponse:
@@ -69,7 +71,7 @@ def dodaj_operacje(cur, typ, farba, ilosc, polka, uwagi="", farba_id=None):
         INSERT INTO operacje (data, typ, farba, ilosc, polka, uwagi, farba_id)
         VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
-        (datetime.now().strftime("%Y-%m-%d %H:%M"), typ, farba, ilosc, polka, uwagi, farba_id),
+        (local_datetime_str(fmt="%Y-%m-%d %H:%M"), typ, farba, ilosc, polka, uwagi, farba_id),
     )
 
 
@@ -77,9 +79,9 @@ def log_production_operation(cur, operation_type, description, machine=None, pla
     cur.execute(
         """
         INSERT INTO production_log (operation_type, description, machine, plan_id, user, created_at)
-        VALUES (?, ?, ?, ?, ?, datetime('now'))
+        VALUES (?, ?, ?, ?, ?, ?)
         """,
-        (operation_type, description, machine, plan_id, user),
+        (operation_type, description, machine, plan_id, user, utc_now_db_string()),
     )
 
 
@@ -95,7 +97,7 @@ def alert_daty(data_val) -> str:
         d = data_val
     else:
         d = datetime.strptime(str(data_val).strip()[:10], "%Y-%m-%d").date()
-    dni = (date.today() - d).days
+    dni = (local_today() - d).days
     if dni > 365:
         return "przeterminowana"
     elif dni > 275:
@@ -187,8 +189,8 @@ def insert_notification_if_enabled(cur, event_key: str, machine, plan_id, messag
 def log_domain_event(cur, event_type: str, actor_user: str, machine=None, plan_id=None, lub_number=None, payload=None):
     cur.execute(
         """INSERT INTO events (event_type, actor_user, machine, plan_id, lub_number, payload, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, datetime('now'))""",
-        (event_type, actor_user, machine, plan_id, lub_number, payload),
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        (event_type, actor_user, machine, plan_id, lub_number, payload, utc_now_db_string()),
     )
 
 
