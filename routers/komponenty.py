@@ -7,6 +7,7 @@ from starlette.requests import Request
 
 from dependencies import get_db, require_auth
 from helpers import render_template
+from db_compat import is_postgres
 
 router = APIRouter()
 
@@ -16,23 +17,42 @@ def _can_manage_components(user: dict) -> bool:
 
 
 def _ensure_table(cur):
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS komponenty (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            kod TEXT NOT NULL UNIQUE,
-            nazwa TEXT NOT NULL,
-            kategoria TEXT,
-            ilosc REAL NOT NULL DEFAULT 0,
-            jednostka TEXT NOT NULL DEFAULT 'szt.',
-            lokalizacja TEXT,
-            uwagi TEXT,
-            status TEXT NOT NULL DEFAULT 'dostepny',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    if is_postgres():
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS komponenty (
+                id SERIAL PRIMARY KEY,
+                kod TEXT NOT NULL UNIQUE,
+                nazwa TEXT NOT NULL,
+                kategoria TEXT,
+                ilosc DOUBLE PRECISION NOT NULL DEFAULT 0,
+                jednostka TEXT NOT NULL DEFAULT 'szt.',
+                lokalizacja TEXT,
+                uwagi TEXT,
+                status TEXT NOT NULL DEFAULT 'dostepny',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """
         )
-        """
-    )
+    else:
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS komponenty (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                kod TEXT NOT NULL UNIQUE,
+                nazwa TEXT NOT NULL,
+                kategoria TEXT,
+                ilosc REAL NOT NULL DEFAULT 0,
+                jednostka TEXT NOT NULL DEFAULT 'szt.',
+                lokalizacja TEXT,
+                uwagi TEXT,
+                status TEXT NOT NULL DEFAULT 'dostepny',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
 
 
 def _seed_components(cur):
