@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, Form, Query
 from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
 from starlette.requests import Request
 
-from dependencies import get_db, is_ajax, require_auth, require_manager_or_admin
+from dependencies import get_db, is_ajax, require_auth
 from helpers import (
     alert_daty,
     build_redirect_url,
@@ -403,7 +403,9 @@ def historia(request: Request, user=Depends(require_auth), conn=Depends(get_db))
 
 
 @router.get("/statystyki")
-def statystyki(request: Request, user=Depends(require_manager_or_admin), conn=Depends(get_db)):
+def statystyki(request: Request, user=Depends(require_auth), conn=Depends(get_db)):
+    if user["role"] not in ("manager", "admin", "operator_mieszalni"):
+        return RedirectResponse("/dashboard", status_code=303)
     cur = conn.cursor()
     cur.execute("""
         SELECT farba, COUNT(*) as ile

@@ -48,7 +48,7 @@ def _load_winding_handover_snapshot(cur, machine: str, report_date: str, shift_n
 
 @router.get("/select-przewijarka")
 def select_przewijarka_form(request: Request, user=Depends(require_auth)):
-    if user["role"] != "operator_przewijarki":
+    if user["role"] not in ("operator_przewijarki", "manager", "admin"):
         return RedirectResponse("/dashboard", status_code=303)
     return render_template("select_przewijarka.html", {"user": user})
 
@@ -59,7 +59,7 @@ def select_przewijarka(
     machine: str = Form(...),
     user=Depends(require_auth),
 ):
-    if user["role"] != "operator_przewijarki":
+    if user["role"] not in ("operator_przewijarki", "manager", "admin"):
         return RedirectResponse("/dashboard", status_code=303)
     if machine.upper() not in WINDING_MACHINES:
         return RedirectResponse("/select-przewijarka", status_code=303)

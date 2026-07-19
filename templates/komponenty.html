@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Magazyn komponentów</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/app-modern.css">
+</head>
+<body class="bg-light">
+<div class="container mt-4 mb-5">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+        <div>
+            <h1 class="mb-1"><i class="fas fa-boxes-stacked"></i> Magazyn komponentów</h1>
+            <p class="mb-0">Zarządzanie komponentami dla mieszalni i produkcji.</p>
+        </div>
+        <div>
+            <a href="/dashboard" class="btn btn-outline-primary btn-sm"><i class="fas fa-home"></i> Dashboard</a>
+            <a href="/logout" class="btn btn-outline-danger btn-sm"><i class="fas fa-sign-out-alt"></i> Wyloguj</a>
+        </div>
+    </div>
+
+    {% if request.query_params.get('success') %}
+    <div class="alert alert-success">Operacja zakończona pomyślnie.</div>
+    {% endif %}
+    {% if request.query_params.get('error') %}
+    <div class="alert alert-danger">Wystąpił problem z operacją.</div>
+    {% endif %}
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white">
+            <h5 class="mb-0"><i class="fas fa-plus-circle"></i> Dodaj komponent</h5>
+        </div>
+        <div class="card-body">
+            <form method="post" action="/komponenty/dodaj" class="row g-3">
+                <div class="col-md-2">
+                    <input type="text" name="kod" class="form-control" placeholder="Kod" required>
+                </div>
+                <div class="col-md-3">
+                    <input type="text" name="nazwa" class="form-control" placeholder="Nazwa" required>
+                </div>
+                <div class="col-md-2">
+                    <input type="text" name="kategoria" class="form-control" placeholder="Kategoria">
+                </div>
+                <div class="col-md-1">
+                    <input type="number" step="0.01" name="ilosc" class="form-control" placeholder="Ilość" value="0">
+                </div>
+                <div class="col-md-1">
+                    <input type="text" name="jednostka" class="form-control" placeholder="J.m.">
+                </div>
+                <div class="col-md-2">
+                    <input type="text" name="lokalizacja" class="form-control" placeholder="Lokalizacja">
+                </div>
+                <div class="col-md-1">
+                    <button type="submit" class="btn btn-success w-100"><i class="fas fa-save"></i></button>
+                </div>
+                <div class="col-12">
+                    <textarea name="uwagi" class="form-control" rows="2" placeholder="Uwagi"></textarea>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white">
+            <h5 class="mb-0"><i class="fas fa-search"></i> Wyszukiwarka</h5>
+        </div>
+        <div class="card-body">
+            <form method="get" action="/komponenty" class="row g-3 align-items-end">
+                <div class="col-md-4">
+                    <input type="text" name="search" class="form-control" value="{{ search }}" placeholder="Kod lub nazwa">
+                </div>
+                <div class="col-md-3">
+                    <select name="status" class="form-select">
+                        <option value="">Wszystkie statusy</option>
+                        <option value="dostepny" {% if status == 'dostepny' %}selected{% endif %}>Dostępny</option>
+                        <option value="wyczerpany" {% if status == 'wyczerpany' %}selected{% endif %}>Wyczerpany</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <select name="category" class="form-select">
+                        <option value="">Wszystkie kategorie</option>
+                        {% for cat in categories %}
+                        <option value="{{ cat }}" {% if category == cat %}selected{% endif %}>{{ cat }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100"><i class="fas fa-search"></i> Szukaj</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-header bg-white">
+            <h5 class="mb-0"><i class="fas fa-list"></i> Lista komponentów</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Kod</th>
+                            <th>Nazwa</th>
+                            <th>Kategoria</th>
+                            <th>Ilość</th>
+                            <th>Status</th>
+                            <th>Lokalizacja</th>
+                            <th>Akcje</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in components %}
+                        <tr>
+                            <td><strong>{{ item.kod }}</strong></td>
+                            <td>{{ item.nazwa }}</td>
+                            <td>{{ item.kategoria or '-' }}</td>
+                            <td>{{ item.ilosc }} {{ item.jednostka or 'szt.' }}</td>
+                            <td>
+                                {% if item.status == 'wyczerpany' %}
+                                <span class="badge bg-danger">Wyczerpany</span>
+                                {% else %}
+                                <span class="badge bg-success">Dostępny</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ item.lokalizacja or '-' }}</td>
+                            <td>
+                                <form method="post" action="/komponenty/{{ item.id }}/pobierz" class="d-inline">
+                                    <input type="number" step="0.01" name="ilosc" class="form-control form-control-sm d-inline w-auto" style="width:90px" placeholder="Ilość" required>
+                                    <button class="btn btn-sm btn-primary"><i class="fas fa-download"></i></button>
+                                </form>
+                                <form method="post" action="/komponenty/{{ item.id }}/zwrot" class="d-inline">
+                                    <input type="number" step="0.01" name="ilosc" class="form-control form-control-sm d-inline w-auto" style="width:90px" placeholder="Zwrot" required>
+                                    <button class="btn btn-sm btn-success"><i class="fas fa-undo-alt"></i></button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="7" class="text-center text-muted">Brak komponentów</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

@@ -88,6 +88,41 @@ def kierownik(request: Request, user=Depends(require_manager_or_admin), conn=Dep
     total_reports = quality_stats["total_reports"] or 0
     quality_score = round((quality_stats["ok_reports"] or 0) * 100 / total_reports, 1) if total_reports else 0
 
+    production_machine_metrics = []
+    overall_qty = 0
+    overall_ok = 0
+    overall_nok = 0
+    for machine in list(PRODUCTION_MACHINES):
+        cur.execute(
+            """
+            SELECT COALESCE(SUM(quantity), 0) AS qty, COALESCE(SUM(ok_quantity), 0) AS ok_qty,
+                   COALESCE(SUM(nok_quantity), 0) AS nok_qty
+            FROM production_reports
+            WHERE created_at >= ? AND created_at < ? AND machine=?
+            """,
+            (start_utc, end_utc, machine),
+        )
+        metrics = cur.fetchone()
+        qty = metrics["qty"] or 0
+        ok_qty = metrics["ok_qty"] or 0
+        nok_qty = metrics["nok_qty"] or 0
+        overall_qty += qty
+        overall_ok += ok_qty
+        overall_nok += nok_qty
+        ok_pct = round(ok_qty * 100 / qty, 1) if qty else 0
+        scrap_pct = round(nok_qty * 100 / qty, 1) if qty else 0
+        production_machine_metrics.append({
+            "machine": machine,
+            "qty": qty,
+            "ok_qty": ok_qty,
+            "nok_qty": nok_qty,
+            "ok_pct": ok_pct,
+            "scrap_pct": scrap_pct,
+        })
+
+    overall_ok_pct = round(overall_ok * 100 / overall_qty, 1) if overall_qty else 0
+    overall_scrap_pct = round(overall_nok * 100 / overall_qty, 1) if overall_qty else 0
+
     return render_template("kierownik.html", {
         "user": {"username": user["username"], "role": user["role"]},
         "machine_rows": machine_rows,
@@ -100,6 +135,9 @@ def kierownik(request: Request, user=Depends(require_manager_or_admin), conn=Dep
         "winding_nok_meters": winding_stats["nok_meters"] or 0,
         "quality_score": quality_score,
         "print_reports_total": total_reports,
+        "production_machine_metrics": production_machine_metrics,
+        "overall_ok_pct": overall_ok_pct,
+        "overall_scrap_pct": overall_scrap_pct,
     })
 
 

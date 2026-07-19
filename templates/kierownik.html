@@ -17,6 +17,9 @@
         </div>
         <div class="toolbar-actions">
             <span class="btn btn-outline-secondary btn-sm disabled"><i class="fas fa-user"></i> {{ user.username }}</span>
+            {% if user.role in ['admin', 'manager'] %}
+            <a href="/select-przewijarka" class="btn btn-outline-info btn-sm"><i class="fas fa-wind"></i> Przewijarki</a>
+            {% endif %}
             <a href="/dashboard" class="btn btn-outline-primary btn-sm"><i class="fas fa-home"></i> Dashboard</a>
             <a href="/logout" class="btn btn-outline-danger btn-sm"><i class="fas fa-sign-out-alt"></i> Wyloguj</a>
         </div>
@@ -53,6 +56,28 @@
             </div>
         </div>
     </section>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white">
+            <h5 class="mb-0"><i class="fas fa-chart-line"></i> Dzienny live view: efektywność i scrap</h5>
+        </div>
+        <div class="card-body">
+            <div class="row g-4">
+                <div class="col-lg-6">
+                    <div class="small text-uppercase fw-bold mb-2">Efektywność dzienna (OK / wydano)</div>
+                    <div style="height: 260px;">
+                        <canvas id="efficiencyChart"></canvas>
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <div class="small text-uppercase fw-bold mb-2">Poziom scrapu (NOK / wydano)</div>
+                    <div style="height: 260px;">
+                        <canvas id="scrapChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <div class="row g-4">
         <div class="col-xl-8">
@@ -130,7 +155,7 @@
         <div class="col-xl-4">
             <div class="card shadow-sm mb-4">
                 <div class="card-header bg-white">
-                    <h5 class="mb-0"><i class="fas fa-file-alt"></i> Raporty i nadzór</h5>
+                    <h5 class="mb-0"><i class="fas fa-file-alt"></i> Szybki dostęp</h5>
                 </div>
                 <div class="card-body d-grid gap-2">
                     <a href="/kierownik/rejestr-raportow" class="btn btn-dark">
@@ -141,17 +166,24 @@
                         <i class="fas fa-print"></i> Raport zbiorczy zmiany
                     </a>
                     <a href="/kierownik/raport-dziennie" class="btn btn-outline-primary">
-                        <i class="fas fa-file-pdf"></i> Raport produkcji dziennej
-                    </a>
-                    <a href="/kierownik/dziennik-zmian" class="btn btn-outline-success">
-                        <i class="fas fa-book"></i> Dziennik zmian produkcyjnych
+                        <i class="fas fa-file-pdf"></i> Raport dzienny
                     </a>
                     <a href="/kierownik/statystyki-zmian" class="btn btn-outline-info">
                         <i class="fas fa-chart-line"></i> Statystyki zmian
                     </a>
-                    <a href="/kierownik/raport-jakosci" class="btn btn-outline-warning">
-                        <i class="fas fa-star"></i> Raport jakości
-                    </a>
+                    <details class="mt-1">
+                        <summary class="btn btn-outline-secondary w-100 text-start">
+                            <i class="fas fa-ellipsis-h"></i> Pozostałe raporty
+                        </summary>
+                        <div class="d-grid gap-2 mt-2">
+                            <a href="/kierownik/dziennik-zmian" class="btn btn-outline-success btn-sm">
+                                <i class="fas fa-book"></i> Dziennik zmian
+                            </a>
+                            <a href="/kierownik/raport-jakosci" class="btn btn-outline-warning btn-sm">
+                                <i class="fas fa-star"></i> Raport jakości
+                            </a>
+                        </div>
+                    </details>
                 </div>
             </div>
 
@@ -175,6 +207,84 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+    const efficiencyLabels = {{ production_machine_metrics | map(attribute='machine') | list | tojson }};
+    const efficiencyValues = {{ production_machine_metrics | map(attribute='ok_pct') | list | tojson }};
+    const scrapValues = {{ production_machine_metrics | map(attribute='scrap_pct') | list | tojson }};
+    const overallEfficiency = {{ overall_ok_pct }};
+    const overallScrap = {{ overall_scrap_pct }};
+
+    const efficiencyChart = new Chart(document.getElementById('efficiencyChart'), {
+        type: 'bar',
+        data: {
+            labels: efficiencyLabels,
+            datasets: [{
+                label: 'Maszyny',
+                data: efficiencyValues,
+                backgroundColor: 'rgba(14, 116, 144, 0.75)',
+                borderRadius: 8
+            }, {
+                label: 'Overall',
+                type: 'line',
+                data: Array(efficiencyLabels.length).fill(overallEfficiency),
+                borderColor: '#ff8a3d',
+                borderWidth: 2,
+                pointRadius: 0,
+                fill: false
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: true }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 100,
+                    ticks: { callback: value => value + '%' }
+                }
+            }
+        }
+    });
+
+    const scrapChart = new Chart(document.getElementById('scrapChart'), {
+        type: 'bar',
+        data: {
+            labels: efficiencyLabels,
+            datasets: [{
+                label: 'Maszyny',
+                data: scrapValues,
+                backgroundColor: 'rgba(217, 83, 79, 0.75)',
+                borderRadius: 8
+            }, {
+                label: 'Overall',
+                type: 'line',
+                data: Array(efficiencyLabels.length).fill(overallScrap),
+                borderColor: '#0f3f6f',
+                borderWidth: 2,
+                pointRadius: 0,
+                fill: false
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: true }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 100,
+                    ticks: { callback: value => value + '%' }
+                }
+            }
+        }
+    });
+</script>
 {% include '_notification_poll.html' %}
 </body>
 </html>
