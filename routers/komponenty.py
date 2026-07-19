@@ -144,6 +144,8 @@ def komponenty(
         "status": status,
         "category": category,
         "categories": categories,
+        "success": request.query_params.get("success", ""),
+        "error": request.query_params.get("error", ""),
     })
 
 
