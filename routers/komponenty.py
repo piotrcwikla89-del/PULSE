@@ -16,6 +16,48 @@ def _can_manage_components(user: dict) -> bool:
     return user.get("role") in ("operator_mieszalni", "manager", "admin")
 
 
+def _can_edit_components(user: dict) -> bool:
+    return user.get("role") in ("manager", "admin")
+
+
+COMPONENT_CATEGORIES = ["FARBY", "LAKIERY", "DODATKI", "CHEMIA"]
+
+
+def _normalize_component_category(raw: str | None) -> str:
+    if not raw:
+        return "FARBY"
+    value = str(raw).strip().upper()
+    aliases = {
+        "FARBY": "FARBY",
+        "FARBA": "FARBY",
+        "LAKIERY": "LAKIERY",
+        "LAKIER": "LAKIERY",
+        "LAKIEROWE": "LAKIERY",
+        "VARNISH": "LAKIERY",
+        "DODATKI": "DODATKI",
+        "ADDITIVE": "DODATKI",
+        "ADDITIVES": "DODATKI",
+        "ADHESIVE": "DODATKI",
+        "ADHESION": "DODATKI",
+        "PROMOTOR": "DODATKI",
+        "CHEMIA": "CHEMIA",
+        "CHEMICZNE": "CHEMIA",
+        "CHEMICZNY": "CHEMIA",
+        "CLEANER": "CHEMIA",
+        "SOLVENT": "CHEMIA",
+    }
+    if value in aliases:
+        return aliases[value]
+    lowered = value.lower()
+    if any(token in lowered for token in ("lak", "varnish", "matt", "gloss", "satin")):
+        return "LAKIERY"
+    if any(token in lowered for token in ("adhes", "promotor", "add", "foil")):
+        return "DODATKI"
+    if any(token in lowered for token in ("clean", "aceton", "octan", "solvent", "printer")):
+        return "CHEMIA"
+    return "FARBY"
+
+
 def _ensure_table(cur):
     if is_postgres():
         cur.execute(
@@ -57,61 +99,61 @@ def _ensure_table(cur):
 
 def _seed_components(cur):
     defaults = [
-        ("1052994", "FB YFA90095408N MIXING OPAQUE WHITE", "farba", 0, "kg", "", ""),
-        ("1062547", "FB FLEXO SILVER SMET022: ULTRABRIGHT", "farba", 0, "kg", "", ""),
-        ("1067241", "FB YFA90092418N BT OPAQUE WHITE", "farba", 0, "kg", "", ""),
-        ("1080346", "FB YFA30007428N HR WARM RED", "farba", 0, "kg", "", ""),
-        ("1080347", "FB YFA20025428N HR ORANGE", "farba", 0, "kg", "", ""),
-        ("1080348", "FARBA YFA1-0035-428N HR YELLOW", "farba", 0, "kg", "", ""),
-        ("1175729", "YFA3-0318-428N Rubine Red", "farba", 0, "kg", "", ""),
-        ("881065", "FB YFA00061428N TRANSPARENT WHITE", "farba", 0, "kg", "", ""),
-        ("881068", "FB YFA10031428N YELLOW", "farba", 0, "kg", "", ""),
-        ("881069", "FB YFA10080428N PROCESS YELLOW", "farba", 0, "kg", "", ""),
-        ("881070", "ENC ORANGE 021 YFA20033", "farba", 0, "kg", "", ""),
-        ("881072", "FB YFA30009428N HR RHODAMINE RED", "farba", 0, "kg", "", ""),
-        ("881073", "FB YFA30014428N HR RED 032", "farba", 0, "kg", "", ""),
-        ("881076", "FB YFA30080428N PROCESS MAGENTA", "farba", 0, "kg", "", ""),
-        ("881077", "YFA3-0284-428N RHODAMINE RED", "farba", 0, "kg", "", ""),
-        ("881078", "FB YFA40010428N HR VIOLET", "farba", 0, "kg", "", ""),
-        ("881079", "FB YFA40012428N HR PURPLE", "farba", 0, "kg", "", ""),
-        ("881080", "FB YFA50021428N REFLEX BLUE", "farba", 0, "kg", "", ""),
-        ("881081", "FB YFA50022428N PROCESS BLUE", "farba", 0, "kg", "", ""),
-        ("881082", "FB YFA50072428N BLUE 072", "farba", 0, "kg", "", ""),
-        ("881083", "FB YFA50080428N PROCESS CYAN", "farba", 0, "kg", "", ""),
-        ("881084", "FB YFA60051428N GREEN", "farba", 0, "kg", "", ""),
-        ("881085", "FB YFA80071428N BLACK", "farba", 0, "kg", "", ""),
-        ("881086", "FB YFA80080428N PROCESS BLACK", "farba", 0, "kg", "", ""),
-        ("881063", "FB YFM00004408N RICH GOLD", "farba", 0, "kg", "", ""),
-        ("881067", "FB YFM00087408N SILVER", "farba", 0, "kg", "", ""),
-        ("865528", "SHOCK DIVA RED 81-813339-9.2730", "farba", 0, "kg", "", ""),
-        ("1288807", "Farba sitowa USW9-009-408N - Combi White", "farba", 0, "kg", "", ""),
-        ("1341850", "FB SRSN50:SUNMATCH BLACK:DK02 91378608", "farba", 0, "kg", "", ""),
-        ("1341854", "FB SRSE50:SUNMATCH BASE:DK02 91378720", "farba", 0, "kg", "", ""),
-        ("1341855", "FB UVOSCREEN ELITE YELLOW USE1-0031-408N", "farba", 0, "kg", "", ""),
-        ("865437", "FB FLEXO SRSF 54-BIEL KRYJACA SUNCHEMI91", "farba", 0, "kg", "", ""),
-        ("951741", "FARBA FLEXO SRSB50 SUNMATCHBLUE 91378450", "farba", 0, "kg", "", ""),
-        ("951742", "FARBA FLEXO SRSV50 SUNMATVIOLET 91378210", "farba", 0, "kg", "", ""),
-        ("955654", "FARBA FLEX SRSR54 91378029 SUNMA MID RED", "farba", 0, "kg", "", ""),
-        ("1061527", "GLOSS VARNISH LM YVX0-0121-107N", "lakier", 0, "kg", "", ""),
-        ("1119596", "YVX0-0124 MATT VARNISH", "lakier", 0, "kg", "", ""),
-        ("1278612", "Varnish Weilb Gloss 82N 1000 (ex360881)", "lakier", 0, "kg", "", ""),
-        ("1484525", "Varnish Weilb Matt 22F 1000 (ex360047)", "lakier", 0, "kg", "", ""),
-        ("552177", "LAK Siegw 85-601164-8 (Sche 54205) MATT", "lakier", 0, "kg", "", ""),
-        ("625445", "LAK Siegw 85-601168-9 (4.9722) MATT", "lakier", 0, "kg", "", ""),
-        ("677035", "VARNISH GL 85-601223-2.2360 sieg", "lakier", 0, "kg", "", ""),
-        ("865442", "LAKIER 60UC9203 MAT HUBER", "lakier", 0, "kg", "", ""),
-        ("866141", "LAKIER 60UC9230 GLOSS HUBER 60IVHEG03", "lakier", 0, "kg", "", ""),
-        ("865491", "VARNISH MAT 85-601224-0-1670 siegwerk", "lakier", 0, "kg", "", ""),
-        ("881054", "G006072 SATIN VARNISH LVHO11290", "lakier", 0, "kg", "", ""),
-        ("1160982", "FB UAA00117410N ADHESION PROMOTOR", "adhesive", 0, "kg", "", ""),
-        ("1487566", "YAA0-0102-409N FCM UV ADD ,FLUORES CON B", "adhesive", 0, "kg", "", ""),
-        ("866168", "FB UVH00007408N GREEN TINT ADHESIVE", "adhesive", 0, "kg", "", ""),
-        ("928526", "FB YVH00001405N COLD FOIL ADHESIVE", "adhesive", 0, "kg", "", ""),
-        ("1127657", "FW UV SOLVENT CLEANER 4", "chemia", 0, "l", "", ""),
-        ("1202360", "PLATE WASH do mycia polimerów", "chemia", 0, "l", "", ""),
-        ("865456", "OCTAN ETYLU", "chemia", 0, "l", "", ""),
-        ("865562", "ACETON TECHNICZNY", "chemia", 0, "l", "", ""),
-        ("865574", "PRINTER CLEAN", "chemia", 0, "l", "", ""),
+        ("1052994", "FB YFA90095408N MIXING OPAQUE WHITE", "FARBY", 0, "kg", "", ""),
+        ("1062547", "FB FLEXO SILVER SMET022: ULTRABRIGHT", "FARBY", 0, "kg", "", ""),
+        ("1067241", "FB YFA90092418N BT OPAQUE WHITE", "FARBY", 0, "kg", "", ""),
+        ("1080346", "FB YFA30007428N HR WARM RED", "FARBY", 0, "kg", "", ""),
+        ("1080347", "FB YFA20025428N HR ORANGE", "FARBY", 0, "kg", "", ""),
+        ("1080348", "FARBA YFA1-0035-428N HR YELLOW", "FARBY", 0, "kg", "", ""),
+        ("1175729", "YFA3-0318-428N Rubine Red", "FARBY", 0, "kg", "", ""),
+        ("881065", "FB YFA00061428N TRANSPARENT WHITE", "FARBY", 0, "kg", "", ""),
+        ("881068", "FB YFA10031428N YELLOW", "FARBY", 0, "kg", "", ""),
+        ("881069", "FB YFA10080428N PROCESS YELLOW", "FARBY", 0, "kg", "", ""),
+        ("881070", "ENC ORANGE 021 YFA20033", "FARBY", 0, "kg", "", ""),
+        ("881072", "FB YFA30009428N HR RHODAMINE RED", "FARBY", 0, "kg", "", ""),
+        ("881073", "FB YFA30014428N HR RED 032", "FARBY", 0, "kg", "", ""),
+        ("881076", "FB YFA30080428N PROCESS MAGENTA", "FARBY", 0, "kg", "", ""),
+        ("881077", "YFA3-0284-428N RHODAMINE RED", "FARBY", 0, "kg", "", ""),
+        ("881078", "FB YFA40010428N HR VIOLET", "FARBY", 0, "kg", "", ""),
+        ("881079", "FB YFA40012428N HR PURPLE", "FARBY", 0, "kg", "", ""),
+        ("881080", "FB YFA50021428N REFLEX BLUE", "FARBY", 0, "kg", "", ""),
+        ("881081", "FB YFA50022428N PROCESS BLUE", "FARBY", 0, "kg", "", ""),
+        ("881082", "FB YFA50072428N BLUE 072", "FARBY", 0, "kg", "", ""),
+        ("881083", "FB YFA50080428N PROCESS CYAN", "FARBY", 0, "kg", "", ""),
+        ("881084", "FB YFA60051428N GREEN", "FARBY", 0, "kg", "", ""),
+        ("881085", "FB YFA80071428N BLACK", "FARBY", 0, "kg", "", ""),
+        ("881086", "FB YFA80080428N PROCESS BLACK", "FARBY", 0, "kg", "", ""),
+        ("881063", "FB YFM00004408N RICH GOLD", "FARBY", 0, "kg", "", ""),
+        ("881067", "FB YFM00087408N SILVER", "FARBY", 0, "kg", "", ""),
+        ("865528", "SHOCK DIVA RED 81-813339-9.2730", "FARBY", 0, "kg", "", ""),
+        ("1288807", "Farba sitowa USW9-009-408N - Combi White", "FARBY", 0, "kg", "", ""),
+        ("1341850", "FB SRSN50:SUNMATCH BLACK:DK02 91378608", "FARBY", 0, "kg", "", ""),
+        ("1341854", "FB SRSE50:SUNMATCH BASE:DK02 91378720", "FARBY", 0, "kg", "", ""),
+        ("1341855", "FB UVOSCREEN ELITE YELLOW USE1-0031-408N", "FARBY", 0, "kg", "", ""),
+        ("865437", "FB FLEXO SRSF 54-BIEL KRYJACA SUNCHEMI91", "FARBY", 0, "kg", "", ""),
+        ("951741", "FARBA FLEXO SRSB50 SUNMATCHBLUE 91378450", "FARBY", 0, "kg", "", ""),
+        ("951742", "FARBA FLEXO SRSV50 SUNMATVIOLET 91378210", "FARBY", 0, "kg", "", ""),
+        ("955654", "FARBA FLEX SRSR54 91378029 SUNMA MID RED", "FARBY", 0, "kg", "", ""),
+        ("1061527", "GLOSS VARNISH LM YVX0-0121-107N", "LAKIERY", 0, "kg", "", ""),
+        ("1119596", "YVX0-0124 MATT VARNISH", "LAKIERY", 0, "kg", "", ""),
+        ("1278612", "Varnish Weilb Gloss 82N 1000 (ex360881)", "LAKIERY", 0, "kg", "", ""),
+        ("1484525", "Varnish Weilb Matt 22F 1000 (ex360047)", "LAKIERY", 0, "kg", "", ""),
+        ("552177", "LAK Siegw 85-601164-8 (Sche 54205) MATT", "LAKIERY", 0, "kg", "", ""),
+        ("625445", "LAK Siegw 85-601168-9 (4.9722) MATT", "LAKIERY", 0, "kg", "", ""),
+        ("677035", "VARNISH GL 85-601223-2.2360 sieg", "LAKIERY", 0, "kg", "", ""),
+        ("865442", "LAKIER 60UC9203 MAT HUBER", "LAKIERY", 0, "kg", "", ""),
+        ("866141", "LAKIER 60UC9230 GLOSS HUBER 60IVHEG03", "LAKIERY", 0, "kg", "", ""),
+        ("865491", "VARNISH MAT 85-601224-0-1670 siegwerk", "LAKIERY", 0, "kg", "", ""),
+        ("881054", "G006072 SATIN VARNISH LVHO11290", "LAKIERY", 0, "kg", "", ""),
+        ("1160982", "FB UAA00117410N ADHESION PROMOTOR", "DODATKI", 0, "kg", "", ""),
+        ("1487566", "YAA0-0102-409N FCM UV ADD ,FLUORES CON B", "DODATKI", 0, "kg", "", ""),
+        ("866168", "FB UVH00007408N GREEN TINT ADHESIVE", "DODATKI", 0, "kg", "", ""),
+        ("928526", "FB YVH00001405N COLD FOIL ADHESIVE", "DODATKI", 0, "kg", "", ""),
+        ("1127657", "FW UV SOLVENT CLEANER 4", "CHEMIA", 0, "l", "", ""),
+        ("1202360", "PLATE WASH do mycia polimerów", "CHEMIA", 0, "l", "", ""),
+        ("865456", "OCTAN ETYLU", "CHEMIA", 0, "l", "", ""),
+        ("865562", "ACETON TECHNICZNY", "CHEMIA", 0, "l", "", ""),
+        ("865574", "PRINTER CLEAN", "CHEMIA", 0, "l", "", ""),
     ]
     for kod, nazwa, kategoria, ilosc, jednostka, lokalizacja, uwagi in defaults:
         cur.execute(
@@ -149,7 +191,7 @@ def komponenty(
         SELECT * FROM komponenty
         WHERE (? = '' OR kod LIKE ? OR nazwa LIKE ?)
           AND (? = '' OR status = ?)
-          AND (? = '' OR kategoria = ?)
+          AND (? = '' OR UPPER(COALESCE(kategoria, '')) = UPPER(?))
         ORDER BY nazwa ASC
         """,
         (search, f"%{search}%", f"%{search}%", status, status, category, category),
@@ -157,6 +199,17 @@ def komponenty(
     components = [dict(row) for row in cur.fetchall()]
     cur.execute("SELECT DISTINCT kategoria FROM komponenty WHERE kategoria IS NOT NULL AND kategoria <> '' ORDER BY kategoria")
     categories = [row[0] for row in cur.fetchall()]
+    edit_component = None
+    if request.query_params.get("edit_id"):
+        try:
+            edit_id = int(request.query_params.get("edit_id"))
+        except ValueError:
+            edit_id = None
+        if edit_id is not None and _can_edit_components(user):
+            cur.execute("SELECT * FROM komponenty WHERE id=?", (edit_id,))
+            edit_row = cur.fetchone()
+            if edit_row:
+                edit_component = dict(edit_row)
     return render_template("komponenty.html", {
         "user": {"username": user["username"], "role": user["role"]},
         "components": components,
@@ -164,6 +217,9 @@ def komponenty(
         "status": status,
         "category": category,
         "categories": categories,
+        "component_categories": COMPONENT_CATEGORIES,
+        "can_edit_catalog": _can_edit_components(user),
+        "edit_component": edit_component,
         "success": request.query_params.get("success", ""),
         "error": request.query_params.get("error", ""),
     })
@@ -182,7 +238,7 @@ def komponenty_dodaj(
     user=Depends(require_auth),
     conn=Depends(get_db),
 ):
-    if not _can_manage_components(user):
+    if not _can_edit_components(user):
         return RedirectResponse("/komponenty?error=brak_dostepu", status_code=303)
     cur = conn.cursor()
     _ensure_table(cur)
@@ -191,7 +247,7 @@ def komponenty_dodaj(
         INSERT INTO komponenty (kod, nazwa, kategoria, ilosc, jednostka, lokalizacja, uwagi, status)
         VALUES (?, ?, ?, ?, ?, ?, ?, 'dostepny')
         """,
-        (kod.strip(), nazwa.strip(), kategoria.strip(), ilosc, jednostka.strip() or "szt.", lokalizacja.strip(), uwagi.strip()),
+        (kod.strip(), nazwa.strip(), _normalize_component_category(kategoria), ilosc, jednostka.strip() or "szt.", lokalizacja.strip(), uwagi.strip()),
     )
     conn.commit()
     return RedirectResponse("/komponenty?success=dodano", status_code=303)
@@ -211,7 +267,7 @@ def komponenty_edytuj(
     user=Depends(require_auth),
     conn=Depends(get_db),
 ):
-    if not _can_manage_components(user):
+    if not _can_edit_components(user):
         return RedirectResponse("/komponenty?error=brak_dostepu", status_code=303)
     cur = conn.cursor()
     _ensure_table(cur)
@@ -221,7 +277,7 @@ def komponenty_edytuj(
         SET kod=?, nazwa=?, kategoria=?, ilosc=?, jednostka=?, lokalizacja=?, uwagi=?, updated_at=CURRENT_TIMESTAMP
         WHERE id=?
         """,
-        (kod.strip(), nazwa.strip(), kategoria.strip(), ilosc, jednostka.strip() or "szt.", lokalizacja.strip(), uwagi.strip(), component_id),
+        (kod.strip(), nazwa.strip(), _normalize_component_category(kategoria), ilosc, jednostka.strip() or "szt.", lokalizacja.strip(), uwagi.strip(), component_id),
     )
     conn.commit()
     return RedirectResponse("/komponenty?success=zaktualizowano", status_code=303)
@@ -277,3 +333,27 @@ def komponenty_zwrot(
     )
     conn.commit()
     return RedirectResponse("/komponenty?success=zwrocono", status_code=303)
+
+
+@router.post("/komponenty/migracja")
+def komponenty_migracja(
+    request: Request,
+    user=Depends(require_auth),
+    conn=Depends(get_db),
+):
+    if not _can_edit_components(user):
+        return RedirectResponse("/komponenty?error=brak_dostepu", status_code=303)
+    cur = conn.cursor()
+    _ensure_table(cur)
+    cur.execute("SELECT id, nazwa, kategoria FROM komponenty")
+    migrated = 0
+    for row in cur.fetchall():
+        new_category = _normalize_component_category(row["kategoria"])
+        if row["kategoria"] != new_category:
+            cur.execute(
+                "UPDATE komponenty SET kategoria=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                (new_category, row["id"]),
+            )
+            migrated += 1
+    conn.commit()
+    return RedirectResponse(f"/komponenty?success=migracja_{migrated}", status_code=303)
