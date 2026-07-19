@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Traceability</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/app-modern.css">
+</head>
+<body class="bg-light">
+<div class="container mt-4 mb-5">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+        <div>
+            <h1 class="mb-1"><i class="fas fa-link"></i> Traceability</h1>
+            <p class="mb-0">Pierwszy testowy model śledzenia zleceń i komponentów.</p>
+        </div>
+        <div>
+            <a href="/dashboard" class="btn btn-outline-primary btn-sm"><i class="fas fa-home"></i> Dashboard</a>
+            <a href="/logout" class="btn btn-outline-danger btn-sm"><i class="fas fa-sign-out-alt"></i> Wyloguj</a>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-dark text-white">
+            <h5 class="mb-0"><i class="fas fa-search"></i> Wyszukaj po numerze zlecenia, artwork lub LUB</h5>
+        </div>
+        <div class="card-body">
+            <form method="get" action="/traceability" class="row g-3 align-items-end">
+                <div class="col-md-10">
+                    <input type="text" name="query" class="form-control" value="{{ context.query }}" placeholder="np. ZL-1001, ART-77, LUB-88">
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100"><i class="fas fa-search"></i> Szukaj</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {% if context.plan %}
+    <div class="row g-4">
+        <div class="col-lg-4">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-file-alt"></i> Podsumowanie zlecenia</h5>
+                </div>
+                <div class="card-body">
+                    <p class="mb-2"><strong>Numer zlecenia:</strong> {{ context.plan.order_number }}</p>
+                    <p class="mb-2"><strong>Artwork:</strong> {{ context.plan.artwork_number or '—' }}</p>
+                    <p class="mb-2"><strong>LUB:</strong> {{ context.plan.lub_number or '—' }}</p>
+                    <p class="mb-2"><strong>Maszyna:</strong> {{ context.plan.machine }}</p>
+                    <p class="mb-2"><strong>Status:</strong> {{ context.plan.status }}</p>
+                    <p class="mb-0"><strong>Farby / polimery:</strong> {{ context.plan.farby_prep_status }} / {{ context.plan.polimery_prep_status }}</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-8">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="fas fa-flask"></i> Komponenty / farby powiązane z LUB</h5>
+                </div>
+                <div class="card-body">
+                    {% if context.materials %}
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr><th>Pantone</th><th>LUB</th><th>Polka</th><th>Waga</th><th>Status</th></tr>
+                            </thead>
+                            <tbody>
+                                {% for m in context.materials %}
+                                <tr>
+                                    <td>{{ m.pantone }}</td>
+                                    <td>{{ m.lub or '—' }}</td>
+                                    <td>{{ m.polka or '—' }}</td>
+                                    <td>{{ m.waga }}</td>
+                                    <td>{{ m.status }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-muted mb-0">Brak powiązanych komponentów / farb dla tego LUB.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-info text-white">
+            <h5 class="mb-0"><i class="fas fa-history"></i> Historia zdarzeń</h5>
+        </div>
+        <div class="card-body">
+            {% if context.events %}
+            <ul class="list-group">
+                {% for event in context.events %}
+                <li class="list-group-item">
+                    <strong>{{ event.event_type }}</strong> · {{ event.actor_user }} · {{ event.created_at }}
+                    {% if event.payload %}<div class="small text-muted">{{ event.payload }}</div>{% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p class="text-muted mb-0">Brak zdarzeń w systemie dla tego zlecenia.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0"><i class="fas fa-print"></i> Raporty produkcji</h5>
+                </div>
+                <div class="card-body">
+                    {% if context.reports %}
+                    {% for report in context.reports %}
+                    <div class="border rounded p-2 mb-2">
+                        <strong>{{ report.job_number }}</strong><br>
+                        <small>OK: {{ report.ok_quantity }} · NOK: {{ report.nok_quantity }}</small>
+                    </div>
+                    {% endfor %}
+                    {% else %}
+                    <p class="text-muted mb-0">Brak raportów produkcji.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0"><i class="fas fa-check-double"></i> Raporty zadruku</h5>
+                </div>
+                <div class="card-body">
+                    {% if context.print_reports %}
+                    {% for report in context.print_reports %}
+                    <div class="border rounded p-2 mb-2">
+                        <strong>{{ report.job_number }}</strong><br>
+                        <small>Status: {{ report.status }} · {{ report.notes or '—' }}</small>
+                    </div>
+                    {% endfor %}
+                    {% else %}
+                    <p class="text-muted mb-0">Brak raportów zadruku.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-dark text-white">
+                    <h5 class="mb-0"><i class="fas fa-wind"></i> Raporty przewijania</h5>
+                </div>
+                <div class="card-body">
+                    {% if context.winding_reports %}
+                    {% for report in context.winding_reports %}
+                    <div class="border rounded p-2 mb-2">
+                        <strong>{{ report.order_number }}</strong><br>
+                        <small>OK: {{ report.ok_meters }} m · NOK: {{ report.nok_meters }} m</small>
+                    </div>
+                    {% endfor %}
+                    {% else %}
+                    <p class="text-muted mb-0">Brak raportów przewijania.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-secondary">Brak danych dla podanego zapytania.</div>
+    {% endif %}
+</div>
+</body>
+</html>
